@@ -1,0 +1,206 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{parskip}
+
+% Configuración de la geometría de la página
+\geometry{
+ a4paper,
+ total={170mm,257mm},
+ left=20mm,
+ top=20mm,
+}
+
+% Configuración de los hipervínculos
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=blue,
+    pdftitle={Curso Redes Sociales},
+    pdfpagemode=FullScreen,
+}
+
+\begin{document}
+
+\textbf{Universidad del Desarrollo} \\
+\textbf{Doctorado en Ciencias de la Complejidad Social}
+
+\vspace{1cm}
+
+\textbf{Curso:} Redes Sociales
+
+\textbf{Año:} 2025
+
+\textbf{Profesor:} Jorge Fábrega
+
+\textbf{Ayudante:} Aníbal Olivera
+
+\vspace{0.5cm}
+
+\textbf{Descripción} 
+
+Este curso introduce al estudiante a la literatura sobre redes sociales y a la aplicación práctica de los conceptos y análisis de esa literatura en bases de datos reales y simulados.
+
+\vspace{0.5cm}
+
+\section{Evaluaciones}
+
+\vspace{0.5cm}
+
+Hay tres evaluaciones. El ideal de las evaluaciones es que las tres pertenezcan a un solo eje temático que culmine con un proyecto de investigación final. 
+
+\begin{itemize}
+    \item \textbf{Trabajo 1:} Creación de una red. (25\%)
+
+La primera parte consiste en la creación de una red social a partir de datos que los estudiantes estimen convenientes para sus intereses, acabando con la creación de un \textit{plot} de dicha red. Lo óptimo es que escojan los datos teniendo ya en mente una posible pregunta de investigación, para así evitar el trabajo extra de construir una segunda red más adelante. En caso de no tener una pregunta definida, se sugiere trabajar con datos de redes de citación de artículos científicos del área de investigación de su interés. Siempre se debe tener en mente la pertinencia de los datos para el trabajo final. Algunos ejemplos de repositorios con API abierta para extraer datos son: \href{https://info.arxiv.org/help/api/index.html}{ArXiv API}, \href{https://api.biorxiv.org/}{bioRxiv API}, \href{https://osf.io/zab38/wiki/home/}{PsyArXiv} (parte de OSF, que tiene su propia API).
+    
+    \item \textbf{Trabajo 2:} Análisis de una red. (25\%)
+
+Para la segunda evaluación, se busca que analicen la red creada con técnicas estadísticas, donde se espera que comparen su red con modelos de redes aleatorias (modelo nulo) o que investiguen si la distribución de grado se asemeja a distribuciones conocidas como las de \textit{Small-World} o \textit{Scale-Free}, entre otras métricas interesantes.
+    
+    \item \textbf{Trabajo 3:} Proyecto de Investigación. (50\%) - \textit{Marco teórico, descripción y análisis de una red en torno a una pregunta de investigación.}
+
+Finalmente, el tercer trabajo consiste en responder una pregunta de investigación utilizando la red y los análisis previos. La pregunta \textit{puede} estar relacionada con los posibles mecanismos de formación de la red, la aplicación de un modelo de Ising a datos de encuestas, la identificación de procesos de contagio complejo, entre otras posibilidades.
+\end{itemize}
+
+\vspace{0.5cm}
+
+\section{Programa del curso y programación}
+
+Cada sesión consta de \textbf{dos bloques}: de 9:45 - 12:30 hrs. 
+
+\textit{Lecturas complementarias entre paréntesis, ver significados de las siglas debajo de la tabla.}
+
+\vspace{0.5cm}
+
+\begin{longtable}{|p{4cm}|p{11cm}|}
+\hline
+\textbf{Sesión 1} \newline (4 de agosto) & 
+Enfoque de redes. Conceptos básicos, historia y aplicaciones en ciencias sociales. Nodos, aristas, grafos dirigidos y no dirigidos, matrices de adyacencia. 
+\newline \newline 
+Lecturas sugeridas (explicación de las siglas abajo): 
+\newline \newline 
+\textit{G, WS, EK 1 y 2; N 6 y 7} \\
+\hline
+\textbf{Sesión 2} \newline (11 de agosto) &
+Grado, cercanía, intermediación y eigenvectors. Describir y analizar redes. 
+\newline Práctica en R.
+\newline \newline 
+\textit{K} \\
+\hline
+\textbf{Sesión 3} \newline (18 de agosto) &
+Mecanismos de formación de redes. Comparación de redes contra modelos nulos, pruebas de hipótesis. 
+\newline Taller R.
+\newline \newline 
+\textit{N 11-13; EK 18 y 20} \\
+\hline
+\textbf{Sesión 4} \newline (25 de agosto) &
+Psicometría y otras aplicaciones estadísticas en redes 
+\newline Taller R.
+\newline \newline 
+\textit{N, 9; EP} \\
+\hline
+\textbf{Sesión 5} \newline (1 de septiembre) &
+Redes incompletas y predicción de links. Comunidades Formación de links.  
+\newline Taller R.
+\newline \newline
+\textit{T} \\
+\hline
+\textbf{Sesión 6} \newline (8 de septiembre) &
+Dinámicas en redes. Contagio y difusión. 
+\newline Taller R. 
+\newline \newline 
+\textit{PS-V} \\
+\hline
+\end{longtable}
+
+\newpage
+
+Además, el curso cuenta con sesiones de \textbf{ayudantía} tanto grupales como individuales.
+
+\vspace{0.5cm}
+
+\begin{longtable}{|p{4cm}|p{11cm}|}
+\hline
+\textbf{Semana 1} \newline (4-8 de agosto) & 
+Ayudantías individuales. \\
+\hline
+\textbf{Semana 2} \newline (11-14 de agosto) &
+Fundamentos Matemáticos
+\newline \newline 
+\textit{N 6 y 7} \\
+\hline
+\textbf{Semana 3} \newline (18-22 de agosto) &
+Ayudantías individuales. Presentaciones de paquetes de R. 
+\newline \newline 
+\href{https://cran.r-project.org/web/packages/network/index.html}{Networks R package}; \href{https://cran.r-project.org/web/packages/igraph/index.html}{Igraph R package}. \\
+\hline
+\textbf{Semana 4} \newline (25-29 de agosto) &
+Mecanismos de Formación.
+\newline \newline 
+\textit{B, 4 y 5} \\
+\hline
+\textbf{Semana 5} \newline (1-5 de septiembre) &
+Ayudantías individuales. \\
+\hline
+\textbf{Semana 6} \newline (8-12 de septiembre) &
+Difusión simple y compleja en Redes.
+\newline \newline 
+\textit{C} \\
+\hline
+\end{longtable}
+
+\newpage
+\section{Bibliografía básica}
+
+\textbf{Nota}: No se harán evaluaciones de lectura, pero en las clases se verán muchos temas que requieren profundización mediante estudio personal para un adecuado dominio. Se subentiende que cada uno de ustedes estará haciendo la lectura de la materia recomendada.
+
+\begin{itemize}
+    \item[\textbf{A:}] Antal et al 2006 - Social balance on networks: The dynamics of friendship and enmity. \\ \href{https://www.maths.ed.ac.uk/~antal/Mypapers/friends06.pdf}{https://www.maths.ed.ac.uk/\textasciitilde antal/Mypapers/friends06.pdf}
+    \item[\textbf{B:}] Barabasi 2016 - Network Science. \\
+    \href{https://networksciencebook.com}{https://networksciencebook.com}
+    \item[\textbf{C:}] Centola \& Macy 2007 - Complex Contagions and the Weakness of Long Ties \\
+    \href{https://doi.org/10.1086/521848}{https://doi.org/10.1086/521848}
+    \item[\textbf{G:}] Granovetter 1985 - Economic Action and Social Structure: The Problem of Embeddedness \\ \href{https://faculty.washington.edu/matsueda/courses/590/Readings/Granovetter\%20Embeddedness\%20AJS.pdf}{https://faculty.washington.edu/matsueda/courses/590/Readings/Granovetter\%20}
+    \item[\textbf{EK:}] Easley y Kleinberg. \\ \href{https://www.cs.cornell.edu/home/kleinber/networks-book/}{https://www.cs.cornell.edu/home/kleinber/networks-book/}
+    \item[\textbf{ERGM:}] Introduction to Exponential-family Random Graph. \\
+    \href{https://cran.r-project.org/web/packages/ergm/vignettes/ergm.pdf}{https://cran.r-project.org/web/packages/ergm/vignettes/ergm.pdf}
+    \item[\textbf{EP:}] Epskamp 2016 - Network Psychometrics \\ 
+    \href{https://arxiv.org/abs/1609.02818}{https://arxiv.org/abs/1609.02818}
+    \item[\textbf{K:}] Network visualization with R. \\
+    \href{http://kateto.net/network-visualization}{http://kateto.net/network-visualization}
+    \item[\textbf{L:}] Liu et al 2012 - Control Centrality and Hierarchical Structure in Complex Networks. \\ 
+    \href{http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0044459}{http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0044459}
+    \item[\textbf{N:}] Newman 2018 – Networks. \\ \href{https://academic.oup.com/book/27884}{https://academic.oup.com/book/27884}
+    \item[\textbf{PS-V:}] Pastor-Satorras, R., \& Vespignani, A. (2014). 'Epidemic processes in complex networks'. \\
+    \href{https://doi.org/10.1103/RevModPhys.87.925}{https://doi.org/10.1103/RevModPhys.87.925}
+    \item[\textbf{T:}] Toledo, I (2022): Text-based link prediction in social networks, chapter 1. Networks.\\
+    \href{https://repositorio.udd.cl/items/73078c95-f097-45d6-865f-1bfe1cfa0f3c/full}{https://repositorio.udd.cl/items/73078c95-f097-45d6-865f-1bfe1cfa0f3c/full}
+    \item[\textbf{WS:}] Wasserman, S., \& Faust, K. (1994). ‘Social Network Analysis: Methods and Applications’. Cap. 1.
+\end{itemize}
+
+\textbf{Sitios webs y journals recomendados para buscar más información}
+
+Para dudas de programación: \href{https://stackoverflow.com/}{https://stackoverflow.com/}
+
+Para ver publicaciones y buscar referencias:
+\begin{itemize}
+    \item \href{https://www.cambridge.org/core/journals/network-science}{https://www.cambridge.org/core/journals/network-science}
+    \item \href{https://appliednetsci.springeropen.com/}{https://appliednetsci.springeropen.com/}
+    \item \href{https://www.journals.elsevier.com/social-networks/}{https://www.journals.elsevier.com/social-networks/}
+    \item \href{http://barabasi.com/}{http://barabasi.com/}
+    \item \href{https://www.networkscienceinstitute.org/}{https://www.networkscienceinstitute.org/}
+\end{itemize}
+
+\textbf{Repositorios con redes}
+\begin{itemize}
+    \item \href{http://networkrepository.com/networks.php}{http://networkrepository.com/networks.php}
+    \item \href{https://github.com/briatte/awesome-network-analysis#datasets}{https://github.com/briatte/awesome-network-analysis\#datasets}
+\end{itemize}
+
+\end{document}
