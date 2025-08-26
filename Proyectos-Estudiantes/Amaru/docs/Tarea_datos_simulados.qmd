@@ -1,0 +1,1390 @@
+---
+title: "Redes de Policonsumo"
+subtitle: "Red de Co-ocurrencia y Red Bipartita"
+author:
+  - name: "Amaru Simón Agüero Jiménez"
+    email: "aaguero@miaundes.cl"
+    orcid: "0000-0001-7336-1833"
+date: "`r Sys.Date()`"
+lang: es
+format:
+  html:
+    smooth-scroll: true
+    toc: true
+    toc-depth: 6
+    toc-location: right
+    number-sections: true
+    number-depth: 6
+    code-fold: true
+    bibliography: ref.bib
+    csl: apa-numeric-superscript.csl
+    fig-cap-location: bottom
+#    css: styles.css
+execute:
+  python: true
+  warning: false
+  message: false
+  fig-width: 8
+  fig-height: 6
+---
+
+<img src="logo.png" style="width: 250px; position:absolute; top:0; left:0; padding:10px;"/>
+
+# REDES DE POLICONSUMO DE SUSTANCIAS EN CHILE
+
+## CONFIGURACIÓN INICIAL
+
+```{r setup}
+# Función para instalar y cargar paquetes
+load_packages <- function(packages) {
+  for (pkg in packages) {
+    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+      install.packages(pkg, dependencies = TRUE, repos = "https://cran.r-project.org")
+      library(pkg, character.only = TRUE)
+    }
+  }
+}
+
+# Lista de paquetes necesarios
+required_packages <- c(
+  "tidyverse", "igraph", "tidygraph", "ggraph", 
+  "kableExtra", "DT", "plotly", "visNetwork", 
+  "corrplot", "RColorBrewer", "patchwork", "dendextend"
+)
+
+# Cargar todos los paquetes
+load_packages(required_packages)
+
+# Configuración global
+options(scipen = 999)
+theme_set(theme_minimal())
+
+# ===============================================
+# FUNCIÓN DE SIMULACIÓN BASADA EN DATOS REALES CHILENOS
+# ===============================================
+
+simular_datos_chile <- function(n_pacientes = 223055, seed = 42) {
+  
+  set.seed(seed)
+  
+  # DISTRIBUCIONES EXACTAS BASADAS EN LOS DATOS REALES
+  
+  # Distribución de sustancia principal (de datos originales)
+  dist_principal <- c(
+    "Pasta Base" = 0.3773,
+    "Alcohol" = 0.3507,
+    "Cocaína" = 0.1886,
+    "Marihuana" = 0.0619,
+    "Sedantes" = 0.0117,
+    "Opioides" = 0.0045,
+    "Otros" = 0.0012,
+    "Inhalables" = 0.0008,
+    "Hipnóticos" = 0.0007,
+    "Estimulantes" = 0.0006,
+    "Anfetaminas" = 0.0006,
+    "Éxtasis/MDMA" = 0.0004,
+    "Alucinógenos" = 0.0003,
+    "Crack" = 0.0002,
+    "Metanfetaminas y Otros Derivados" = 0.0002,
+    "Tranquilizantes" = 0.0002,
+    "Lsd" = 0.0001,
+    "Heroína" = 0.0001
+  )
+  
+  # Probabilidad de policonsumo por sustancia principal
+  prob_policonsumo <- c(
+    "Pasta Base" = 0.844,
+    "Alcohol" = 0.483,
+    "Cocaína" = 0.836,
+    "Marihuana" = 0.799,
+    "Sedantes" = 0.627,
+    "Opioides" = 0.682,
+    "Otros" = 0.633,
+    "Inhalables" = 0.833,
+    "Hipnóticos" = 0.710,
+    "Estimulantes" = 0.679,
+    "Anfetaminas" = 0.840,
+    "Éxtasis/MDMA" = 0.988,
+    "Alucinógenos" = 0.949,
+    "Crack" = 0.745,
+    "Metanfetaminas y Otros Derivados" = 0.972,
+    "Tranquilizantes" = 0.778,
+    "Lsd" = 0.929,
+    "Heroína" = 0.944
+  )
+  
+  # Distribución del número de sustancias (de datos originales)
+  # 1: 29.04%, 2: 34.05%, 3: 24.89%, 4: 12.02%
+  dist_n_sustancias <- c(0.2904, 0.3405, 0.2489, 0.1202)
+  
+  # Probabilidades condicionales (basadas en top 5 de cada sustancia principal)
+  prob_condicionales <- list(
+    "Pasta Base" = list(
+      "Alcohol" = 0.422,
+      "Marihuana" = 0.342,
+      "Cocaína" = 0.195,
+      "Sedantes" = 0.015,
+      "Otros" = 0.009,
+      "Opioides" = 0.003,
+      "Inhalables" = 0.003,
+      "Anfetaminas" = 0.002,
+      "Estimulantes" = 0.001,
+      "Éxtasis/MDMA" = 0.001
+    ),
+    "Alcohol" = list(
+      "Marihuana" = 0.365,
+      "Cocaína" = 0.320,
+      "Pasta Base" = 0.183,
+      "Sedantes" = 0.065,
+      "Otros" = 0.030,
+      "Opioides" = 0.008,
+      "Inhalables" = 0.004,
+      "Anfetaminas" = 0.004,
+      "Estimulantes" = 0.003,
+      "Hipnóticos" = 0.002
+    ),
+    "Cocaína" = list(
+      "Alcohol" = 0.513,
+      "Marihuana" = 0.310,
+      "Pasta Base" = 0.109,
+      "Sedantes" = 0.026,
+      "Otros" = 0.011,
+      "Opioides" = 0.005,
+      "Anfetaminas" = 0.004,
+      "Estimulantes" = 0.003,
+      "Éxtasis/MDMA" = 0.003,
+      "Alucinógenos" = 0.002
+    ),
+    "Marihuana" = list(
+      "Alcohol" = 0.478,
+      "Cocaína" = 0.256,
+      "Pasta Base" = 0.158,
+      "Sedantes" = 0.036,
+      "Otros" = 0.018,
+      "Opioides" = 0.008,
+      "Anfetaminas" = 0.006,
+      "Éxtasis/MDMA" = 0.005,
+      "Estimulantes" = 0.004,
+      "Alucinógenos" = 0.003
+    ),
+    "Sedantes" = list(
+      "Alcohol" = 0.470,
+      "Marihuana" = 0.225,
+      "Cocaína" = 0.143,
+      "Pasta Base" = 0.063,
+      "Otros" = 0.038,
+      "Opioides" = 0.022,
+      "Hipnóticos" = 0.012,
+      "Anfetaminas" = 0.006,
+      "Estimulantes" = 0.005,
+      "Tranquilizantes" = 0.003
+    ),
+    "Opioides" = list(
+      "Marihuana" = 0.289,
+      "Alcohol" = 0.280,
+      "Cocaína" = 0.160,
+      "Sedantes" = 0.122,
+      "Pasta Base" = 0.064,
+      "Otros" = 0.030,
+      "Anfetaminas" = 0.010,
+      "Éxtasis/MDMA" = 0.008,
+      "Estimulantes" = 0.007,
+      "Alucinógenos" = 0.006
+    )
+  )
+  
+  # Para sustancias menos frecuentes, usar distribución general
+  dist_general_otras <- c(
+    "Alcohol" = 0.35,
+    "Marihuana" = 0.30,
+    "Cocaína" = 0.20,
+    "Pasta Base" = 0.10,
+    "Sedantes" = 0.03,
+    "Otros" = 0.01,
+    "Opioides" = 0.005,
+    "Resto" = 0.005
+  )
+  
+  # GENERAR DATOS
+  data_sim <- data.frame(
+    HASH_KEY = paste0("SIM_", sprintf("%08d", 1:n_pacientes)),
+    sustancia_principal = NA_character_,
+    otras_sustancias_no1 = NA_character_,
+    otras_sustancias_no2 = NA_character_,
+    otras_sustancias_no3 = NA_character_,
+    stringsAsFactors = FALSE
+  )
+  
+  # Asignar sustancias principales
+  data_sim$sustancia_principal <- sample(names(dist_principal),
+                                         size = n_pacientes,
+                                         prob = dist_principal,
+                                         replace = TRUE)
+  
+  # Para cada paciente, determinar si tiene policonsumo y cuántas sustancias
+  for(i in 1:n_pacientes) {
+    sust_prin <- data_sim$sustancia_principal[i]
+    
+    # Determinar si tiene policonsumo
+    prob_poli <- ifelse(sust_prin %in% names(prob_policonsumo),
+                        prob_policonsumo[sust_prin],
+                        0.70)  # Promedio general si no está en la lista
+    
+    if(runif(1) < prob_poli) {
+      # Tiene policonsumo - determinar cuántas sustancias en total
+      # Ajustar distribución para que coincida con la real
+      n_total <- sample(2:4, size = 1, 
+                       prob = dist_n_sustancias[2:4] / sum(dist_n_sustancias[2:4]))
+      n_adicionales <- n_total - 1
+      
+      # Obtener probabilidades condicionales
+      if(sust_prin %in% names(prob_condicionales)) {
+        probs <- prob_condicionales[[sust_prin]]
+      } else {
+        # Usar distribución general para sustancias menos comunes
+        probs <- dist_general_otras
+      }
+      
+      # Seleccionar sustancias adicionales
+      sust_disponibles <- names(probs)
+      sust_disponibles <- sust_disponibles[sust_disponibles != sust_prin]
+      
+      if(length(sust_disponibles) >= n_adicionales) {
+        # Normalizar probabilidades
+        probs_norm <- as.numeric(probs[sust_disponibles])
+        probs_norm <- probs_norm / sum(probs_norm)
+        
+        sust_seleccionadas <- sample(sust_disponibles,
+                                    size = min(n_adicionales, length(sust_disponibles)),
+                                    prob = probs_norm,
+                                    replace = FALSE)
+        
+        # Asignar a las columnas correspondientes
+        for(j in 1:length(sust_seleccionadas)) {
+          if(j == 1) data_sim$otras_sustancias_no1[i] <- sust_seleccionadas[j]
+          if(j == 2) data_sim$otras_sustancias_no2[i] <- sust_seleccionadas[j]
+          if(j == 3) data_sim$otras_sustancias_no3[i] <- sust_seleccionadas[j]
+        }
+      }
+    }
+  }
+  
+  return(data_sim)
+}
+
+# ===============================================
+# DETECCIÓN Y CARGA/SIMULACIÓN DE DATOS
+# ===============================================
+
+# Intentar cargar datos reales
+data_path <- paste0(gsub("/docs", "", getwd()), "/data/CONS_C1_2010_22_CLEAN.rds")
+
+if(file.exists(data_path)) {
+  data <- readRDS(data_path)
+} else {
+  # Simular datos con propiedades idénticas a los reales
+  n_sim <- 100000  # Se puede ajustar este número (original: 223055)
+  data <- simular_datos_chile(n_pacientes = n_sim, seed = 2024)
+}
+
+# Función de simplificación
+simplify_substance_names <- function(x) {
+  x <- as.character(x)
+  x[str_detect(x, "^Sin ")] <- NA
+  x <- str_replace(x, "^Sedantes:.*", "Sedantes")
+  x <- str_replace(x, "^Hipnóticos:.*", "Hipnóticos")
+  x <- str_replace(x, "^Inhalables:.*", "Inhalables")
+  x <- str_replace(x, "^Otros Opioides.*", "Opioides")
+  x <- str_replace(x, "^Otros Estimulantes.*", "Estimulantes")
+  x <- str_replace(x, "^Otros Alucinógenos.*", "Alucinógenos")
+  x <- str_replace(x, "^Éxtasis.*", "Éxtasis/MDMA")
+  return(x)
+}
+
+# Columnas de sustancias
+cols_sustancias <- c("sustancia_principal", "otras_sustancias_no1", 
+                     "otras_sustancias_no2", "otras_sustancias_no3")
+
+# Aplicar limpieza
+data_network <- data %>%
+  select(HASH_KEY, all_of(cols_sustancias)) %>%
+  mutate(across(all_of(cols_sustancias), simplify_substance_names)) %>%
+  filter(!is.na(sustancia_principal))
+```
+
+## INTRODUCCIÓN
+
+Los trastornos por uso de sustancias (TUS) constituyen una de las principales causas de carga de enfermedad y mortalidad evitable a escala global. En 2016 se calculó que más de 100 millones de personas sufrían trastorno por consumo de alcohol y decenas de millones presentaban dependencia de opioides, cannabis o cocaína [@Volkow2023]. La frecuente comorbilidad psiquiátrica, depresión, trastornos de ansiedad, psicosis o trastornos de personalidad multiplica la severidad clínica y los costes sociosanitarios [@Connery2020]. Estudios hospitalarios europeos y norteamericanos muestran que alrededor del 20 % de las admisiones psiquiátricas corresponden a pacientes de sexo femenino con diagnóstico dual, fenómeno que favorece re-ingresos y estancias prolongadas[@GomezSanchezLafuente2022].
+
+En Chile, las encuestas nacionales sitúan la prevalencia de abuso o dependencia de sustancias entre el 11 % y el 20 %, una de las más elevadas de Latinoamérica. Los registros hospitalarios concuerdan con las cifras internacionales: alrededor de una quinta parte de los internados en psiquiatría presenta un TCS como diagnóstico primario o secundario. Esta convergencia evidencia que la hospitalización psiquiátrica es un desenlace clínico crítico en la trayectoria de las adicciones, razón por la cual identificar sus factores determinantes resulta esencial para planificar intervenciones preventivas, asignar recursos y reducir la carga asistencial [@Connery2020; @Saxena2011; @GomezSanchezLafuente2016; @Rojas2002].
+
+## DESCRIPCIÓN GENERAL DE LOS DATOS
+
+Este es un estudio de cohorte retrospectiva de pacientes adultos en tratamiento por consumo de sustancias, con datos otorgados por el Servicio Nacional para la Prevención y Rehabilitación del Consumo de Drogas y Alcohol de Chile (SENDA) en convenio con el núcleo milenio de ánalisis de políticas públicas de drogas (nDP). La cohorte se construyó vinculando los registros administrativos de los pacientes (n = 223,061 episodios de tratamiento entre 97,698 personas en las 16 regiones del país).
+
+Estos datos incluyen múltiples variables relacionadas al consumo y tratamiento rehabilitador de drogas. Entre estas variables esta la *sustancia principal*  por la cual se trató al paciente y sustancias secundarias (alcohol, pasta base de cocaína, cocaína, marihuana, depresores del SNC u otras sustancias. Tambien está presente el número de reingresos a tratamiento (retratamientos, categorizados en 0, 1, 2, 3 o más reingresos), el *tipo de plan de tratamiento* (ambulatorio vs. residencial) y el historial clínico de salud mental de los pacientes.
+
+El registro de pacientes en tratamiento se realizó en una plataforma electrónica denominada SISTRAT, que contenía información sociodemográfica, datos sobre el estado de salud y patrones de consumo de sustancias, entre otras variables, además de información sobre el propio tratamiento (p. ej., fecha de ingreso, egreso, tipo de tratamiento). Las base de datos se vincularon de forma determinista mediante un hash de 64 caracteres resultante del cifrado (con un algoritmo SHA-256) del número de identificación único de cada persona.
+
+
+
+```{r data-description}
+#| tbl-cap: "Características generales de la base de datos"
+
+info_data <- data.frame(
+  Característica = c("Total de registros",
+                     "Registros con sustancia principal",
+                     "Período de análisis",
+                     "Variables de sustancias",
+                     "Número de sustancias únicas",
+                     "Promedio de sustancias por paciente",
+                     "Mediana de sustancias por paciente",
+                     "Desviación estándar"),
+  Valor = c(format(nrow(data), big.mark = ","),
+            format(nrow(data_network), big.mark = ","),
+            "2010-2022",
+            as.character(length(cols_sustancias)),
+            as.character(n_distinct(unlist(data_network[cols_sustancias]), na.rm = TRUE)),
+            round(mean(rowSums(!is.na(data_network[cols_sustancias]))), 2),
+            median(rowSums(!is.na(data_network[cols_sustancias]))),
+            round(sd(rowSums(!is.na(data_network[cols_sustancias]))), 2))
+)
+
+info_data %>%
+  kable(format = "html", 
+        col.names = c("Característica", "Valor"),
+        align = c("l", "r"),
+        row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"),
+                full_width = FALSE)
+```
+
+# RED DE CO-OCURRENCIA
+
+## Construcción de la Red
+
+La red de co-ocurrencia es pertinente para identificar patrones de policonsumo y asociaciones entre sustancias que tienden a ser usadas conjuntamente. Esta representación revela combinaciones frecuentes y comunidades de sustancias; en particular, ayuda a localizar “nodos puente” que conectan módulos y que suelen ser dianas clínicas de alto impacto para el cribado y la intervención integrada [@Jones2019Bridge; @Borsboom2017WorldPsychiatry; @LopezToro2022JClinMed]. Además, varios emparejamientos visibles en la red coinciden con riesgos clínicos conocidos: el uso concurrente de opioides y benzodiacepinas se asocia con un aumento de 2–5 veces del riesgo de sobredosis (mayor en los primeros 90 días de co‑exposición), y más del 90% de las muertes con benzodiacepinas co‑involucran opioides [@Sun2017BMJ; @Hernandez2018JAMAOpen; @Liu2021MMWR]; la co‑ingesta de alcohol y cocaína genera cocaetileno, metabolito más cardiotóxico, por lo que constituye una combinación especialmente peligrosa [@Pennings2002Addiction]; y la co‑involucración de estimulantes con opioides sintéticos (p. ej., fentanilo) ha aumentado de forma marcada en los últimos años, subrayando la necesidad de estrategias específicas para policonsumo [@Mattson2021MMWR]. Metodológicamente, la transformación logarítmica de pesos resulta adecuada en redes con distribuciones de cola pesada, permitiendo visualizar de forma equilibrada tanto las asociaciones muy frecuentes como las moderadas [@Clauset2009SIAM]. Por su parte, filtrar el 60% superior de co‑ocurrencias es coherente con los enfoques de “*backbone*” en redes ponderadas, que eliminan enlaces débiles para resaltar la estructura multiescala estadísticamente significativa y focalizar los patrones robustos [@Serrano2009PNAS].  
+
+
+```{r cooccurrence-construction}
+# Crear matriz de co-ocurrencia
+create_cooccurrence_matrix <- function(df) {
+  all_substances <- unique(unlist(df[cols_sustancias]))
+  all_substances <- all_substances[!is.na(all_substances)]
+  all_substances <- sort(all_substances)
+  
+  n_sust <- length(all_substances)
+  co_matrix <- matrix(0, nrow = n_sust, ncol = n_sust,
+                     dimnames = list(all_substances, all_substances))
+  
+  for (i in 1:nrow(df)) {
+    row_substances <- unlist(df[i, cols_sustancias])
+    row_substances <- row_substances[!is.na(row_substances)]
+    
+    if (length(row_substances) > 1) {
+      for (j in 1:(length(row_substances)-1)) {
+        for (k in (j+1):length(row_substances)) {
+          sust1 <- row_substances[j]
+          sust2 <- row_substances[k]
+          
+          co_matrix[sust1, sust2] <- co_matrix[sust1, sust2] + 1
+          co_matrix[sust2, sust1] <- co_matrix[sust2, sust1] + 1
+        }
+      }
+    }
+  }
+  
+  return(co_matrix)
+}
+
+co_matrix <- create_cooccurrence_matrix(data_network)
+
+# IMPORTANTE: Solo el 60% de las co-ocurrencias más frecuentes
+# Obtener todos los valores únicos de co-ocurrencia (excluyendo diagonal)
+co_values <- co_matrix[upper.tri(co_matrix)]
+co_values <- co_values[co_values > 0]
+
+# Calcular el percentil 40 (para mantener el 60% superior)
+threshold_value <- quantile(co_values, probs = 0.40)
+
+# Aplicar umbral a la matriz
+co_matrix_filtered <- co_matrix
+co_matrix_filtered[co_matrix < threshold_value] <- 0
+
+# Crear grafo con pesos logarítmicos (ESCALA LOGARÍTMICA)
+g_full_co <- graph_from_adjacency_matrix(
+  co_matrix_filtered,
+  mode = "undirected",
+  weighted = TRUE,
+  diag = FALSE
+)
+
+# Aplicar transformación logarítmica a los pesos
+E(g_full_co)$weight_original <- E(g_full_co)$weight
+E(g_full_co)$weight <- log1p(E(g_full_co)$weight)  # ESCALA LOGARÍTMICA: log(1 + weight)
+
+# Eliminar vértices aislados
+g_co <- delete_vertices(g_full_co, degree(g_full_co) == 0)
+
+# Detectar comunidades
+communities_co <- cluster_louvain(g_co)
+V(g_co)$community <- membership(communities_co)
+
+# Información sobre el filtrado
+n_edges_original <- sum(co_matrix > 0) / 2
+n_edges_filtered <- sum(co_matrix_filtered > 0) / 2
+percent_retained <- round(n_edges_filtered / n_edges_original * 100, 1)
+```
+
+## Métricas de la Red de Co-ocurrencia
+
+```{r cooccurrence-metrics}
+#| tbl-cap: "Métricas principales de la red de co-ocurrencia (60% de co-ocurrencias más frecuentes)"
+
+# Calcular métricas de centralidad
+centrality_metrics_co <- data.frame(
+  Sustancia = V(g_co)$name,
+  Grado = degree(g_co),
+  Fuerza = round(strength(g_co), 2),
+  Intermediación = round(betweenness(g_co, normalized = TRUE), 3),
+  Cercanía = round(closeness(g_co, normalized = TRUE), 3),
+  Eigenvector = round(eigen_centrality(g_co)$vector, 3),
+  PageRank = round(page_rank(g_co)$vector, 4),
+  Comunidad = V(g_co)$community
+) %>%
+  arrange(desc(Fuerza))
+
+# Propiedades estructurales
+network_props_co <- data.frame(
+  Propiedad = c("Número de nodos", "Número de enlaces", 
+                "Enlaces filtrados (60% superior)", "Densidad",
+                "Diámetro", "Distancia media", "Clustering global",
+                "Modularidad", "Asortatividad"),
+  Valor = c(vcount(g_co), ecount(g_co), 
+            paste0(n_edges_filtered, " de ", n_edges_original, " (", percent_retained, "%)"),
+            round(edge_density(g_co), 4),
+            diameter(g_co, weights = NA),
+            round(mean_distance(g_co, weights = NA), 2),
+            round(transitivity(g_co, type = "global"), 3),
+            round(modularity(communities_co), 3),
+            round(assortativity_degree(g_co), 3))
+)
+
+# Mostrar top 10 sustancias
+centrality_metrics_co %>%
+  head(10) %>%
+  select(Sustancia, Grado, Fuerza, Intermediación, Cercanía, Eigenvector, PageRank) %>%
+  kable(format = "html") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+# Mostrar propiedades
+network_props_co %>%
+  kable(format = "html", align = c("l", "r")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+## Visualización Estática
+
+```{r viz-cooccurrence-static}
+#| fig-cap: "Red de co-ocurrencia de sustancias (escala logarítmica, 60% superior de co-ocurrencias)"
+#| fig-height: 10
+#| fig-width: 12
+
+g_co_tidy <- as_tbl_graph(g_co)
+
+# Calcular tamaños proporcionales a la fuerza (con pesos logarítmicos)
+node_strength <- strength(g_co)
+node_size <- sqrt(node_strength) / max(sqrt(node_strength)) * 20 + 5
+
+set.seed(42)
+ggraph(g_co_tidy, layout = 'fr', weights = weight) + 
+  geom_edge_link(aes(width = weight, alpha = weight),
+                 color = "gray40",
+                 show.legend = FALSE) +
+  geom_node_point(aes(color = factor(V(g_co)$community)),
+                  size = node_size,
+                  alpha = 0.9) +
+  geom_node_text(aes(label = name),
+                 size = node_size/4,
+                 repel = TRUE,
+                 force = 3,
+                 segment.size = 0.2,
+                 segment.alpha = 0.5,
+                 max.overlaps = Inf, 
+                 show.legend = FALSE) +
+  scale_edge_width_continuous(range = c(0.2, 3)) +
+  scale_edge_alpha_continuous(range = c(0.2, 0.7)) +
+  scale_color_brewer(palette = "Set1",
+                     name = "Comunidad") +
+  labs(title = "Red de Co-ocurrencia de Sustancias",
+       subtitle = paste0("Escala logarítmica | 60% de co-ocurrencias más frecuentes (", 
+                        n_edges_filtered, " de ", n_edges_original, " enlaces)")) +
+  theme_void() +
+  theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 12, hjust = 0.5),
+        legend.position = "right")
+```
+
+
+## Red Interactiva Co-ocurrencia
+
+```{r cooccurrence-interactive}
+#| fig-cap: "Red interactiva de co-ocurrencia (zoom y arrastre habilitados)"
+
+# Calcular layout con mayor separación
+set.seed(123)
+coords_co <- layout_with_fr(g_co, weights = E(g_co)$weight)
+coords_co <- coords_co * 300
+
+# Calcular tamaños proporcionales
+node_strength <- strength(g_co)
+node_sizes <- (node_strength / max(node_strength)) * 50 + 10
+
+# Calcular k-core
+coreness_co <- coreness(g_co)
+
+# Preparar datos para visNetwork
+nodes_co <- data.frame(
+  id = V(g_co)$name,
+  label = V(g_co)$name,
+  value = node_sizes,
+  group = V(g_co)$community,
+  x = coords_co[,1],
+  y = coords_co[,2],
+  title = paste0(
+    "<b>", V(g_co)$name, "</b><br>",
+    "Fuerza (log): ", format(round(strength(g_co), 2), big.mark = ","), "<br>",
+    "Co-ocurrencias originales: ", format(round(sum(exp(E(g_co)$weight[E(g_co)$weight > 0]) - 1)), big.mark = ","), "<br>",
+    "Conexiones: ", degree(g_co), "<br>",
+    "Comunidad: ", V(g_co)$community, "<br>",
+    "K-Core: ", coreness_co
+  ),
+  font.size = node_sizes * 0.8,  # Tamaño de letra proporcional al nodo
+  font.face = "Arial",  # Fuente Arial
+  physics = TRUE
+)
+
+# Ajustar posiciones de nodos principales
+if ("Alcohol" %in% nodes_co$id) {
+  idx <- which(nodes_co$id == "Alcohol")
+  nodes_co[idx, c("x", "y")] <- c(-400, 0)
+  nodes_co[idx, "fixed"] <- TRUE
+}
+if ("Marihuana" %in% nodes_co$id) {
+  idx <- which(nodes_co$id == "Marihuana")
+  nodes_co[idx, c("x", "y")] <- c(400, 0)
+  nodes_co[idx, "fixed"] <- TRUE
+}
+if ("Pasta Base" %in% nodes_co$id) {
+  idx <- which(nodes_co$id == "Pasta Base")
+  nodes_co[idx, c("x", "y")] <- c(0, 400)
+  nodes_co[idx, "fixed"] <- TRUE
+}
+if ("Cocaína" %in% nodes_co$id) {
+  idx <- which(nodes_co$id == "Cocaína")
+  nodes_co[idx, c("x", "y")] <- c(0, -400)
+  nodes_co[idx, "fixed"] <- TRUE
+}
+
+# Preparar edges con grosor proporcional (usando pesos originales para el tooltip)
+edges_df_co <- as_data_frame(g_co, what = "edges")
+edges_co <- data.frame(
+  from = edges_df_co$from,
+  to = edges_df_co$to,
+  value = edges_df_co$weight / 5,  # Escalar peso logarítmico para visualización
+  title = paste0(
+    edges_df_co$from, " ↔ ", edges_df_co$to, "<br>",
+    "Co-ocurrencias: ", format(round(exp(edges_df_co$weight) - 1), big.mark = ","), "<br>",
+    "Peso logarítmico: ", round(edges_df_co$weight, 2)
+  ),
+  color = "rgba(150,150,150,0.3)",
+  highlight = "rgba(255,100,100,0.8)"
+)
+
+# Crear visualización interactiva
+visNetwork(nodes_co, edges_co, height = "700px", width = "100%") %>%
+  visOptions(
+    highlightNearest = list(
+      enabled = TRUE,
+      hover = TRUE,
+      degree = 1,
+      labelOnly = FALSE
+    ),
+    nodesIdSelection = list(
+      enabled = TRUE,
+      style = 'width: 200px; height: 30px;'
+    ),
+    selectedBy = list(
+      variable = "group",
+      style = 'width: 200px; height: 30px;',
+      main = "Seleccionar Comunidad"
+    )
+  ) %>%
+  visPhysics(
+    enabled = TRUE,
+    stabilization = list(
+      enabled = TRUE,
+      iterations = 500,
+      updateInterval = 50
+    ),
+    barnesHut = list(
+      gravitationalConstant = -8000,
+      centralGravity = 0.1,
+      springLength = 300,
+      springConstant = 0.001,
+      damping = 0.5,
+      avoidOverlap = 1
+    ),
+    maxVelocity = 50,
+    minVelocity = 0.75,
+    solver = "barnesHut"
+  ) %>%
+  visLayout(
+    randomSeed = 123,
+    improvedLayout = TRUE
+  ) %>%
+  visInteraction(
+    navigationButtons = TRUE,
+    dragNodes = TRUE,
+    dragView = TRUE,
+    zoomView = TRUE,
+    hover = TRUE,
+    tooltipDelay = 0,
+    zoomSpeed = 0.5
+  ) %>%
+  visEdges(
+    smooth = list(
+      enabled = TRUE,
+      type = "continuous",
+      roundness = 0.5
+    ),
+    width = 2,
+    physics = TRUE,
+    scaling = list(
+      min = 0.5,
+      max = 5
+    )
+  ) %>%
+  visNodes(
+    shape = "dot",
+    scaling = list(
+      min = 10,
+      max = 60,
+      label = list(
+        enabled = TRUE,
+        min = 10,
+        max = 40,
+        drawThreshold = 0,
+        maxVisible = 50
+      )
+    ),
+    font = list(
+      face = "Arial, sans-serif",
+      align = "center"
+    ),
+    borderWidth = 2,
+    borderWidthSelected = 4
+  ) %>%
+  visLegend(
+    enabled = TRUE,
+    position = "right",
+    width = 0.15,
+    useGroups = TRUE,
+    main = "Comunidades"
+  ) %>%
+  visConfigure(enabled = FALSE)
+```
+
+# RED BIPARTITA PACIENTE-SUSTANCIA
+
+## Construcción de la Red
+
+La red bipartita es  útil y que representa simultáneamente a los pacientes y a las sustancias, preservando la heterogeneidad individual y, a la vez, permitiendo ver la prevalencia relativa de cada sustancia a través del grado de sus nodos [@Wang2022JBI; @Borgatti1997]. Al mantener la estructura de dos modos, se evita la pérdida de información y las distorsiones que introducen las proyecciones unipartitas  y se pueden aplicar métricas específicas de bipartitos para capturar patrones de alto riesgo [@Yang2022PONE]. Además, medidas como la betweenness centrality identifican sustancias que actúan como “puentes” entre grupos de consumidores, clave para detectar rutas de transición en el policonsumo [@Pavlopoulos2018]. Para descubrir perfiles y comunidades de policonsumo se dispone de modularidad bipartita y variantes para redes ponderadas, validadas en la literatura metodológica [@Dormann2014; @Beckett2016]. La utilidad clínica de los bipartitos está documentada en contextos de salud: redes paciente‑prescriptor y paciente‑hospital han permitido detectar conductas de búsqueda de fármacos y diferenciar patrones según sustancia, evidenciando nodos (sustancias o instituciones) estratégicos para intervención [@Yang2022PONE]. Finalmente, para equilibrar legibilidad y representatividad de la visualización, el muestreo aleatorio simple de 2.500 pacientes facilita la visulización sin introducir sesgos y, usado con fines gráficos, preserva propiedades globales (distribuciones y relaciones clave) de forma aceptable para el análisis exploratorio [@Wu2017TVCG; @Hu2013].
+
+
+```{r bipartite-construction}
+# MUESTREO ALEATORIO SIMPLE DE 2,500 SUJETOS DEL TOTAL
+# No estratificado por sustancia - cada paciente tiene igual probabilidad de ser seleccionado
+set.seed(42)
+n_sample <- 2500
+sample_patients <- sample(unique(data_network$HASH_KEY), 
+                         min(n_sample, length(unique(data_network$HASH_KEY))))
+data_network_sampled <- data_network %>%
+  filter(HASH_KEY %in% sample_patients)
+
+# Crear edge list paciente-sustancia con datos muestreados
+create_bipartite_edgelist <- function(data) {
+  edgelist <- data.frame()
+  
+  for (col in cols_sustancias) {
+    temp <- data %>%
+      select(HASH_KEY, sustancia = !!sym(col)) %>%
+      filter(!is.na(sustancia)) %>%
+      mutate(weight = ifelse(col == "sustancia_principal", 2, 1))
+    
+    edgelist <- rbind(edgelist, temp)
+  }
+  
+  edgelist <- edgelist %>%
+    group_by(HASH_KEY, sustancia) %>%
+    summarise(weight = sum(weight), .groups = 'drop')
+  
+  return(edgelist)
+}
+
+bipartite_edges <- create_bipartite_edgelist(data_network_sampled)
+
+# Crear grafo bipartito
+g_bipartite <- graph_from_data_frame(bipartite_edges, directed = FALSE)
+V(g_bipartite)$type <- V(g_bipartite)$name %in% bipartite_edges$sustancia
+V(g_bipartite)$node_type <- ifelse(V(g_bipartite)$type, "Sustancia", "Paciente")
+
+# Detectar comunidades
+communities_bi <- cluster_louvain(g_bipartite)
+V(g_bipartite)$community <- membership(communities_bi)
+
+# Estadísticas básicas
+n_pacientes <- sum(!V(g_bipartite)$type)
+n_sustancias <- sum(V(g_bipartite)$type)
+n_conexiones <- ecount(g_bipartite)
+```
+
+## Métricas de la Red Bipartita
+
+```{r bipartite-metrics}
+#| tbl-cap: "Métricas principales de la red bipartita (muestra aleatoria simple de 2,500 pacientes)"
+
+# Calcular grado por tipo
+degree_all_bi <- degree(g_bipartite)
+degree_pacientes <- degree_all_bi[!V(g_bipartite)$type]
+degree_sustancias <- degree_all_bi[V(g_bipartite)$type]
+
+# Propiedades estructurales
+network_props_bi <- data.frame(
+  Propiedad = c("Número de pacientes (muestra)", "Número de sustancias",
+                "Total de conexiones", "Densidad",
+                "Conexiones promedio por paciente",
+                "Conexiones promedio por sustancia",
+                "Componentes conectados", "Modularidad"),
+  Valor = c(format(n_pacientes, big.mark = ","),
+            n_sustancias,
+            format(n_conexiones, big.mark = ","),
+            round(n_conexiones / (n_pacientes * n_sustancias), 6),
+            round(mean(degree_pacientes), 2),
+            round(mean(degree_sustancias), 0),
+            components(g_bipartite)$no,
+            round(modularity(communities_bi), 3))
+)
+
+network_props_bi %>%
+  kable(format = "html", align = c("l", "r")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+## Visualización Estática Bipartita
+
+```{r viz-bipartite-static}
+#| fig-cap: "Red bipartita paciente-sustancia (muestra aleatoria simple de 2,500 pacientes)"
+#| fig-height: 12
+#| fig-width: 14
+
+# Usar el grafo muestreado
+g_bi_viz <- g_bipartite
+
+# Calcular tamaños proporcionales para sustancias
+degree_bi_viz <- degree(g_bi_viz)
+substances_degree <- degree_bi_viz[V(g_bi_viz)$type]
+patients_degree <- degree_bi_viz[!V(g_bi_viz)$type]
+
+# Mantener tamaños grandes para sustancias, muy pequeños para pacientes
+node_sizes_bi <- ifelse(V(g_bi_viz)$type, 
+                        (substances_degree / max(substances_degree)) * 20 + 5,
+                        0.5)
+
+# Crear layout bipartito manual mejorado
+n_nodes <- vcount(g_bi_viz)
+layout_matrix <- matrix(0, n_nodes, 2)
+
+substance_nodes <- which(V(g_bi_viz)$type)
+patient_nodes <- which(!V(g_bi_viz)$type)
+
+# Posicionar SUSTANCIAS ABAJO (y = 0) con mayor separación
+if(length(substance_nodes) > 0) {
+  # Ordenar sustancias por grado
+  substance_order <- substance_nodes[order(degree_bi_viz[substance_nodes], decreasing = TRUE)]
+  
+  # Usar espaciado más amplio con pesos para sustancias importantes
+  weights <- sqrt(degree_bi_viz[substance_order])
+  positions <- cumsum(c(0, weights))
+  positions <- (positions / max(positions) - 0.5) * 5  # Aumentado  para mayor separación
+  
+  for(i in seq_along(substance_order)) {
+    layout_matrix[substance_order[i], 1] <- positions[i]
+    layout_matrix[substance_order[i], 2] <- 1  # Sustancias abajo
+  }
+}
+
+# Posicionar PACIENTES ARRIBA (y = 1) con mayor distribución
+if(length(patient_nodes) > 0) {
+  layout_matrix[patient_nodes, 1] <- seq(-2.5, 2.5, length.out = length(patient_nodes))  # Aumentado rango
+  layout_matrix[patient_nodes, 2] <- 0  # Pacientes arriba
+}
+
+g_bi_tidy <- as_tbl_graph(g_bi_viz) |>
+  activate(nodes) |>
+  mutate(
+    node_type      = ifelse(type, "Sustancia", "Paciente"),
+    node_size_plot = node_sizes_bi,
+    label          = ifelse(type, name, ""),
+    # Texto proporcional al tamaño del nodo (sin negrita)
+    text_size      = ifelse(type, pmax(2, node_size_plot * 0.45), NA_real_)
+  )
+
+# Crear visualización
+ggraph(g_bi_tidy, layout = layout_matrix) +
+  geom_edge_link(aes(alpha = weight), 
+                 color = "gray70",
+                 width = 0.1,
+                 show.legend = FALSE) +
+  geom_node_point(aes(color = V(g_bi_viz)$node_type),
+                  size = node_sizes_bi,
+                  alpha = 0.9) +
+  geom_node_text(aes(label = label, size = text_size),
+                 nudge_y = -0.05, repel = TRUE,
+  show.legend = F) +
+  scale_color_manual(values = c("Paciente" = "#3498db", 
+                                "Sustancia" = "#e74c3c"),
+                     name = "Tipo de Nodo") +
+  scale_edge_alpha_continuous(range = c(0.05, 0.3)) +
+  labs(title = "Red Bipartita Paciente-Sustancia",
+       subtitle = paste0("Muestra: ", format(n_pacientes, big.mark = ","), 
+                        " pacientes y ", n_sustancias, " sustancias | ",
+                        format(n_conexiones, big.mark = ","), " conexiones")) +
+  theme_void() +
+  theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 12, hjust = 0.5),
+        legend.position = "bottom")
+```
+
+
+## Red Interactiva Bipartita
+
+```{r bipartite-interactive}
+#| fig-cap: "Red bipartita interactiva (muestra aleatoria simple de 2,500 pacientes - zoom y arrastre habilitados)"
+
+# Usar el grafo muestreado
+g_bi_interactive <- g_bipartite
+
+# Calcular grados
+degree_interactive <- degree(g_bi_interactive)
+
+# Preparar datos para visNetwork
+nodes_bi_viz <- data.frame(
+  id = V(g_bi_interactive)$name,
+  label = ifelse(V(g_bi_interactive)$type, 
+                 V(g_bi_interactive)$name, 
+                 ""),
+  group = V(g_bi_interactive)$node_type,
+  value = ifelse(V(g_bi_interactive)$type,
+                 degree_interactive * 2,
+                 1),
+  title = paste0(
+    ifelse(V(g_bi_interactive)$type,
+           paste0("<b>", V(g_bi_interactive)$name, "</b><br>",
+                  "Total pacientes: ", format(degree_interactive, big.mark = ",")),
+           paste0("Paciente ID: ", substr(V(g_bi_interactive)$name, 1, 8), "<br>",
+                  "Sustancias: ", degree_interactive))
+  ),
+  shape = ifelse(V(g_bi_interactive)$type, "dot", "dot"),
+  font.size = ifelse(V(g_bi_interactive)$type, 
+                     sqrt(degree_interactive) * 3,  # Tamaño proporcional para sustancias
+                     0),  # Sin etiquetas para pacientes
+  font.face = "Arial",  # Fuente Arial
+  physics = TRUE
+)
+
+# Layout bipartito manual mejorado
+layout_bi <- matrix(0, nrow(nodes_bi_viz), 2)
+substance_idx <- which(V(g_bi_interactive)$type)
+patient_idx <- which(!V(g_bi_interactive)$type)
+
+# SUSTANCIAS ARRIBA, con mayor separación
+if(length(substance_idx) > 0) {
+  sust_degrees <- degree_interactive[substance_idx]
+  sust_order <- substance_idx[order(sust_degrees, decreasing = TRUE)]
+  
+  weights <- sqrt(sust_degrees[order(sust_degrees, decreasing = TRUE)])
+  positions <- cumsum(c(0, weights[-length(weights)]))
+  positions <- (positions / max(positions) - 0.5) * 1700  # mayor separación
+  
+  for(i in seq_along(sust_order)) {
+    layout_bi[sust_order[i], 1] <- positions[i]
+    layout_bi[sust_order[i], 2] <- -300  # Sustancias abajo
+  }
+}
+
+# PACIENTES ABAJO, distribuidos con mayor separación
+if(length(patient_idx) > 0) {
+  n_patients <- length(patient_idx)
+  
+  if(n_patients > 1000) {
+    n_rows <- ceiling(n_patients / 150)  # Reducido de 200 a 150 columnas para mayor dispersión
+    for(i in seq_along(patient_idx)) {
+      row <- ((i - 1) %/% 150) + 1
+      col <- ((i - 1) %% 150) + 1
+      layout_bi[patient_idx[i], 1] <- (col - 75) * 12  # Aumentado espaciado de 8 a 12
+      layout_bi[patient_idx[i], 2] <- 300 + row * 60   # Aumentado espaciado vertical a 60
+    }
+  } else {
+    layout_bi[patient_idx, 1] <- seq(-1200, 1200, length.out = n_patients)  # Aumentado rango
+    layout_bi[patient_idx, 2] <- 300  # Pacientes arriba
+  }
+}
+
+nodes_bi_viz$x <- layout_bi[,1]
+nodes_bi_viz$y <- layout_bi[,2]
+
+# Edges para visNetwork
+edges_bi_viz <- as_data_frame(g_bi_interactive, what = "edges") %>%
+  mutate(
+    from = from,
+    to = to,
+    color = "rgba(150,150,150,0.15)",
+    highlight = "rgba(255,107,107,0.8)",
+    width = 0.5,
+    smooth = FALSE
+  )
+
+# Crear red interactiva
+visNetwork(nodes_bi_viz, edges_bi_viz, height = "800px", width = "100%") %>%
+  visOptions(
+    highlightNearest = list(
+      enabled = TRUE,
+      hover = TRUE,
+      degree = 1,
+      labelOnly = FALSE
+    ),
+    nodesIdSelection = list(
+      enabled = TRUE,
+      style = 'width: 200px; height: 30px;',
+      main = "Buscar nodo"
+    ),
+    selectedBy = list(
+      variable = "group",
+      style = 'width: 200px; height: 30px;',
+      main = "Filtrar por tipo"
+    )
+  ) %>%
+  visPhysics(
+    enabled = FALSE,
+    stabilization = FALSE
+  ) %>%
+  visInteraction(
+    navigationButtons = TRUE,
+    dragNodes = TRUE,
+    dragView = TRUE,
+    zoomView = TRUE,
+    hover = TRUE,
+    tooltipDelay = 0,
+    hideEdgesOnDrag = TRUE,
+    hideNodesOnDrag = FALSE
+  ) %>%
+  visEdges(
+    smooth = FALSE,
+    physics = FALSE,
+    hidden = FALSE,
+    selectionWidth = 2
+  ) %>%
+  visNodes(
+    scaling = list(
+      min = 2,
+      max = 60,
+      label = list(
+        enabled = TRUE,
+        min = 8,
+        max = 35,
+        drawThreshold = 0,
+        maxVisible = 30
+      )
+    ),
+    font = list(
+      face = "Arial, sans-serif",
+      align = "center"
+    ),
+    borderWidth = 1,
+    borderWidthSelected = 3
+  ) %>%
+  visGroups(
+    groupname = "Sustancia",
+    color = list(
+      background = "#e74c3c",
+      border = "#c0392b",
+      highlight = list(
+        background = "#ff6b6b",
+        border = "#e74c3c"
+      )
+    ),
+    shape = "dot",
+    font = list(
+      size = 16, 
+      color = "black", 
+      face = "Arial, sans-serif"
+    )
+  ) %>%
+  visGroups(
+    groupname = "Paciente",
+    color = list(
+      background = "#3498db",
+      border = "#2980b9",
+      highlight = list(
+        background = "#5dade2",
+        border = "#3498db"
+      )
+    ),
+    shape = "dot",
+    size = 3
+  ) %>%
+  visLegend(
+    enabled = TRUE,
+    position = "right",
+    width = 0.1,
+    useGroups = TRUE,
+    main = "Tipo de Nodo"
+  ) %>%
+  visConfigure(enabled = FALSE)
+```
+
+# RED BIPARTITA PROYECTADA
+
+## Construcción de la Proyección
+
+```{r projection-construction}
+# NOTA: Para la proyección usamos TODOS los datos, no la muestra
+# Crear edge list completo para proyección
+bipartite_edges_full <- create_bipartite_edgelist(data_network)
+
+# Crear proyección en sustancias
+create_substance_projection <- function(edges) {
+  substances <- unique(edges$sustancia)
+  n_sust <- length(substances)
+  
+  adj_matrix <- matrix(0, n_sust, n_sust,
+                      dimnames = list(substances, substances))
+  
+  for (patient in unique(edges$HASH_KEY)) {
+    patient_subs <- edges$sustancia[edges$HASH_KEY == patient]
+    if (length(patient_subs) > 1) {
+      for (i in 1:(length(patient_subs)-1)) {
+        for (j in (i+1):length(patient_subs)) {
+          adj_matrix[patient_subs[i], patient_subs[j]] <- 
+            adj_matrix[patient_subs[i], patient_subs[j]] + 1
+          adj_matrix[patient_subs[j], patient_subs[i]] <- 
+            adj_matrix[patient_subs[j], patient_subs[i]] + 1
+        }
+      }
+    }
+  }
+  
+  return(adj_matrix)
+}
+
+# Usar todos los datos para la proyección
+adj_substances <- create_substance_projection(bipartite_edges_full)
+g_substances <- graph_from_adjacency_matrix(adj_substances, 
+                                           mode = "undirected", 
+                                           weighted = TRUE)
+
+# Detectar comunidades
+communities_proj <- cluster_louvain(g_substances)
+V(g_substances)$community <- membership(communities_proj)
+```
+
+## Métricas de la Proyección
+
+```{r projection-metrics}
+#| tbl-cap: "Métricas principales de la proyección bipartita (datos completos)"
+
+# Calcular métricas de centralidad
+centrality_metrics_bi <- data.frame(
+  Sustancia = V(g_substances)$name,
+  Grado = degree(g_substances),
+  Fuerza = round(strength(g_substances), 0),
+  Intermediación = round(betweenness(g_substances, normalized = TRUE), 3),
+  Cercanía = round(closeness(g_substances, normalized = TRUE), 3),
+  Eigenvector = round(eigen_centrality(g_substances)$vector, 3),
+  PageRank = round(page_rank(g_substances)$vector, 4),
+  Comunidad = V(g_substances)$community
+) %>%
+  left_join(
+    bipartite_edges_full %>%
+      group_by(sustancia) %>%
+      summarise(Pacientes_Totales = n_distinct(HASH_KEY)),
+    by = c("Sustancia" = "sustancia")
+  ) %>%
+  arrange(desc(Pacientes_Totales))
+
+# Propiedades estructurales
+network_props_proj <- data.frame(
+  Propiedad = c("Número de nodos", "Número de enlaces", "Densidad",
+                "Diámetro", "Distancia media", "Clustering global",
+                "Modularidad", "Asortatividad"),
+  Valor = c(vcount(g_substances), ecount(g_substances),
+            round(edge_density(g_substances), 4),
+            diameter(g_substances, weights = NA),
+            round(mean_distance(g_substances, weights = NA), 2),
+            round(transitivity(g_substances, type = "global"), 3),
+            round(modularity(communities_proj), 3),
+            round(assortativity_degree(g_substances), 3))
+)
+
+# Mostrar top 10 sustancias
+centrality_metrics_bi %>%
+  head(10) %>%
+  select(Sustancia, Grado, Fuerza, Intermediación, Cercanía, 
+         Eigenvector, PageRank, Pacientes_Totales) %>%
+  kable(format = "html") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+# Mostrar propiedades
+network_props_proj %>%
+  kable(format = "html", align = c("l", "r")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+## Visualización Estática de Proyección
+
+```{r viz-projection-static}
+#| fig-cap: "Red de proyección de sustancias (datos completos)"
+#| fig-height: 10
+#| fig-width: 12
+
+g_proj_tidy <- as_tbl_graph(g_substances)
+
+# Calcular tamaños proporcionales
+node_strength_proj <- strength(g_substances)
+node_size_proj <- sqrt(node_strength_proj) / max(sqrt(node_strength_proj)) * 20 + 5
+
+set.seed(42)
+ggraph(g_proj_tidy, layout = 'fr', weights = weight) + 
+  geom_edge_link(aes(width = weight, alpha = weight),
+                 color = "gray40",
+                 show.legend = FALSE) +
+  geom_node_point(aes(color = factor(V(g_substances)$community)),
+                  size = node_size_proj,
+                  alpha = 0.9) +
+  geom_node_text(aes(label = name),
+                 size = node_size_proj/2,
+                 repel = TRUE,
+                 force = 3,
+                 segment.size = 0.2,
+                 segment.alpha = 0.5,
+                 max.overlaps = Inf,
+                 show.legend = FALSE) +
+  scale_edge_width_continuous(range = c(0.2, 3)) +
+  scale_edge_alpha_continuous(range = c(0.2, 0.7)) +
+  scale_color_brewer(palette = "Set1",
+                     name = "Comunidad") +
+  labs(title = "Red de Proyección de Sustancias",
+       subtitle = "Basado en pacientes compartidos | Datos completos") +
+  theme_void() +
+  theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 12, hjust = 0.5),
+        legend.position = "right")
+```
+
+La proyección de la red paciente–sustancia sobre el modo “sustancias” convierte las relaciones indirectas en enlaces directos entre sustancias ponderados por el número de pacientes que comparten, lo que permite analizar la estructura de co‑ocurrencia desde una perspectiva agregada y detectar pares de sustancias que aparecen sistemáticamente en los mismos perfiles de consumo [@Latapy2008SN; @Newman2001PRE; @Guillaume2006PhysA]. A diferencia de una red de co‑ocurrencia construida solo con episodios simultáneos, esta proyección integra la experiencia compartida de los pacientes a lo largo del período observado, de modo que las asociaciones reflejan patrones de consumo comunes aunque no coincidan en el tiempo, tal como se justifica en el marco de las redes temporales y en aplicaciones de proyección a partir de datos longitudinales [@Holme2012PhysRep].
+
+
+## Red Interactiva de Proyección
+
+```{r projection-interactive}
+#| fig-cap: "Red interactiva de proyección de sustancias (datos completos)"
+
+# Calcular layout con mayor separación
+set.seed(123)
+coords_proj <- layout_with_fr(g_substances, weights = E(g_substances)$weight)
+coords_proj <- coords_proj * 300
+
+# Calcular tamaños proporcionales
+node_strength_proj <- strength(g_substances)
+node_sizes_proj <- (node_strength_proj / max(node_strength_proj)) * 50 + 10
+
+# Calcular k-core
+coreness_bi <- coreness(g_substances)
+
+# Preparar datos para visNetwork
+nodes_proj <- data.frame(
+  id = V(g_substances)$name,
+  label = V(g_substances)$name,
+  value = node_sizes_proj,
+  group = membership(communities_proj),
+  x = coords_proj[,1],
+  y = coords_proj[,2],
+  title = paste0(
+    "<b>", V(g_substances)$name, "</b><br>",
+    "Pacientes totales: ", centrality_metrics_bi$Pacientes_Totales[
+      match(V(g_substances)$name, centrality_metrics_bi$Sustancia)
+    ], "<br>",
+    "Fuerza de conexión: ", format(round(node_strength_proj, 0), big.mark = ","), "<br>",
+    "Conexiones: ", degree(g_substances), "<br>",
+    "Comunidad: ", membership(communities_proj), "<br>",
+    "K-Core: ", coreness_bi
+  ),
+  font.size = node_sizes_proj * 0.8,  # Tamaño de letra proporcional al nodo
+  font.face = "Arial",  # Fuente Arial
+  physics = TRUE
+)
+
+# Ajustar posiciones de nodos principales
+if ("Alcohol" %in% nodes_proj$id) {
+  idx <- which(nodes_proj$id == "Alcohol")
+  nodes_proj[idx, c("x", "y")] <- c(-400, 0)
+  nodes_proj[idx, "fixed"] <- TRUE
+}
+if ("Marihuana" %in% nodes_proj$id) {
+  idx <- which(nodes_proj$id == "Marihuana")
+  nodes_proj[idx, c("x", "y")] <- c(400, 0)
+  nodes_proj[idx, "fixed"] <- TRUE
+}
+if ("Pasta Base" %in% nodes_proj$id) {
+  idx <- which(nodes_proj$id == "Pasta Base")
+  nodes_proj[idx, c("x", "y")] <- c(0, 400)
+  nodes_proj[idx, "fixed"] <- TRUE
+}
+if ("Cocaína" %in% nodes_proj$id) {
+  idx <- which(nodes_proj$id == "Cocaína")
+  nodes_proj[idx, c("x", "y")] <- c(0, -400)
+  nodes_proj[idx, "fixed"] <- TRUE
+}
+
+# Preparar edges con grosor proporcional
+edges_proj_df <- as_data_frame(g_substances, what = "edges")
+edges_proj <- data.frame(
+  from = edges_proj_df$from,
+  to = edges_proj_df$to,
+  value = edges_proj_df$weight / 50,
+  title = paste0(
+    edges_proj_df$from, " ↔ ", edges_proj_df$to, "<br>",
+    "Pacientes compartidos: ", format(edges_proj_df$weight, big.mark = ",")
+  ),
+  color = "rgba(150,150,150,0.4)",
+  highlight = "#FF6B6B"
+)
+
+# Crear visualización interactiva
+visNetwork(nodes_proj, edges_proj, height = "700px", width = "100%") %>%
+  visOptions(
+    highlightNearest = list(
+      enabled = TRUE,
+      hover = TRUE,
+      degree = 1,
+      labelOnly = FALSE
+    ),
+    nodesIdSelection = list(
+      enabled = TRUE,
+      style = 'width: 200px; height: 30px;',
+      main = "Buscar sustancia"
+    ),
+    selectedBy = list(
+      variable = "group",
+      style = 'width: 200px; height: 30px;',
+      main = "Filtrar por comunidad"
+    )
+  ) %>%
+  visPhysics(
+    enabled = TRUE,
+    stabilization = list(
+      enabled = TRUE,
+      iterations = 500,
+      updateInterval = 50
+    ),
+    barnesHut = list(
+      gravitationalConstant = -10000,
+      centralGravity = 0.1,
+      springLength = 350,
+      springConstant = 0.001,
+      damping = 0.5,
+      avoidOverlap = 1
+    ),
+    maxVelocity = 50,
+    minVelocity = 0.75,
+    solver = "barnesHut"
+  ) %>%
+  visLayout(
+    randomSeed = 123,
+    improvedLayout = TRUE
+  ) %>%
+  visInteraction(
+    navigationButtons = TRUE,
+    dragNodes = TRUE,
+    dragView = TRUE,
+    zoomView = TRUE,
+    hover = TRUE,
+    tooltipDelay = 0,
+    hideEdgesOnDrag = TRUE,
+    zoomSpeed = 0.5
+  ) %>%
+  visEdges(
+    smooth = list(
+      enabled = TRUE,
+      type = "continuous",
+      roundness = 0.5
+    ),
+    width = 2,
+    physics = TRUE,
+    scaling = list(
+      min = 0.5,
+      max = 6
+    ),
+    color = list(
+      color = "rgba(150,150,150,0.4)",
+      highlight = "#FF6B6B",
+      hover = "#FF6B6B"
+    )
+  ) %>%
+  visNodes(
+    shape = "dot",
+    scaling = list(
+      min = 10,
+      max = 60,
+      label = list(
+        enabled = TRUE,
+        min = 10,
+        max = 40,
+        drawThreshold = 0,
+        maxVisible = 50
+      )
+    ),
+    font = list(
+      face = "Arial, sans-serif",
+      align = "center"
+    ),
+    borderWidth = 2,
+    borderWidthSelected = 4,
+    color = list(
+      background = "#e74c3c",
+      border = "#c0392b",
+      highlight = list(
+        background = "#ff6b6b",
+        border = "#e74c3c"
+      )
+    )
+  ) %>%
+  visLegend(
+    enabled = TRUE,
+    position = "right",
+    width = 0.15,
+    useGroups = TRUE,
+    main = "Comunidades"
+  ) %>%
+  visConfigure(enabled = FALSE)
+```
+
+# Comunidades en las Redes
+
+Las comunidades que se observan de manera consistente en las tres representaciones (co‑ocurrencia directa, red bipartita y proyección) no son artefactos visuales, sino estructuras con soporte metodológico y clínico. En todas las redes se usó optimización de modularidad con el algoritmo de Louvain, apropiado para grafos grandes y ponderados por su eficiencia y buen desempeño empírico [@Blondel2008JSM]. Es importante recordar que la modularidad presenta un límite de resolución: puede fusionar comunidades pequeñas si existen comunidades muy grandes, por lo que conviene interpretar los resultados junto con métricas de estabilidad y comparaciones entre representaciones de la misma población [@FortunatoBarthelemy2007PNAS; @Fortunato2010PhysRep]. La convergencia de comunidades entre la co‑ocurrencia, la red bipartita y su proyección refuerza los patrones detectados y es coherente con el marco de redes multicapa/temporales para estudiar estructuras que persisten al cambiar el modo de representación [@Mucha2010Science; @Kivela2014JCN]. En salud, las redes paciente–proveedor/paciente–sustancia han mostrado que las métricas en bipartitos capturan subpoblaciones de alto riesgo con mayor poder predictivo que las métricas unipartitas, lo que apoya el uso de este enfoque para perfilar policonsumo [@Yang2022PONE].
+
+En la red de co-ocurrencia, el clustering emerge principalmente por tres factores interrelacionados. Primero, existe una afinidad farmacológica donde sustancias con efectos similares o complementarios tienden a ser consumidas conjuntamente, como es el caso de los depresores del sistema nervioso central que forman un cluster distintivo (alcohol, sedantes, hipnóticos), o los estimulantes que se agrupan por sus efectos sinérgicos (cocaína, pasta base, estimulantes). Esto tiende a respetar estas afinidades farmacológicas (p. ej., depresores del SNC o estimulantes), coherentes con clasificaciones de daño/efecto y con la evidencia de co‑consumo y sinergias en policonsumo [@Nutt2007Lancet; @Nutt2010Lancet; @Crummy2020Frontiers]. En la red bipartita, el clustering revela estructuras adicionales que no son evidentes en la simple co-ocurrencia. Los grupos emergentes representan perfiles de consumidores con características sociodemográficas y clínicas similares, donde cada cluster captura una subpoblación con necesidades terapéuticas específicas. Las rutas de administración y la cinética de entrada al cerebro también contribuyen al agrupamiento: vías que aceleran la llegada del fármaco (inyectar, fumar) incrementan la liabilidad adictiva y favorecen transiciones entre sustancias con prácticas similares, lo que se traduce en comunidades densas y “puentes” entre ellas [@Samaha2005Trends; @Allain2015NBR; @Roy2013DAD]. Asimismo, las trayectorias de escalada/sustitución y los patrones de “sustancias de entrada” descritos en la literatura (p. ej., alcohol y cannabis) explican conexiones entre módulos más “blandos” y otros de mayor severidad [@Kandel1992JStudAlcohol]. El lugar central del alcohol como nodo de alto grado/intermediación es esperable dada su prevalencia poblacional y disponibilidad, ampliamente documentadas en la carga global de enfermedad [@GBD2018Lancet].
+
+Los nodos que funcionan como puentes entre comunidades son dianas clínicas de alto impacto porque conectan perfiles de consumo que, de otro modo, permanecerían segregados [@Jones2021MBR]. La alta modularidad observada en las tres redes indica que el consumo no es uniforme, sino compartimentado; en consecuencia, conviene diseñar intervenciones segmentadas por comunidades (p. ej., paquetes integrales para “depresores”, estrategias de reducción de daños para combinaciones estimulante–depresor, etc.) en lugar de abordar cada sustancia de forma aislada [@FortunatoHric2016PhysRep].
+
