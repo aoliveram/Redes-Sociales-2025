@@ -6,11 +6,11 @@ rm(list = ls())
 
 #setwd("C:/Users/DCCS3/Documents/REDES SOCIALES")
 library(readxl)
-datos_red_nido <- read_excel("Desktop/Doctorado/2025 - VI/Redes-Sociales-2025/Proyectos-Estudiantes/Mariana/Tarea 1/datos_red_nido.xlsx",
+datos <- read_excel("Desktop/Doctorado/2025 - VI/Redes-Sociales-2025/Proyectos-Estudiantes/Mariana/Tarea 1/datos_red_nido.xlsx",
                              na = "NA")
 
 #Base de datos
-datos = read_excel("datos_red_nido.xlsx", na="NA")
+#datos = read_excel("datos_red_nido.xlsx", na="NA")
 datos = as.data.frame(datos)
 
 # Filtrar para que sean solo aves
