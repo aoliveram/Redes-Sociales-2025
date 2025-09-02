@@ -1,0 +1,163 @@
+library(igraph)
+library(tidyr)
+library(readxl)
+library(dplyr)
+library(Matrix)
+library(ggplot2)
+library(ggraph)
+
+
+#datos <- read_excel("Derechos_concedidos4.xlsx")  
+datos <- read_excel("~/Desktop/Doctorado/2025 - VI/Redes-Sociales-2025/Proyectos-Estudiantes/Caro/Tarea1/Derechos_Concedidos4.xlsx")
+
+names(datos)
+df <- datos %>%
+  rename(
+    nombre_solicitante = "Nombre Solicitante",
+    caudal_anual = "Caudal \r\nAnual\r\nProm \r\n"
+  )
+df <- df %>%
+  arrange(desc("caudal_anual")) %>%  
+  slice_head(n = 10000)     
+df_red <- df %>%
+  select(nombre_solicitante, Cuenca, caudal_anual, Región) %>%
+  filter(!is.na(nombre_solicitante), !is.na(Cuenca)) %>%
+  distinct()
+
+f_solic <- factor(df_red$nombre_solicitante)
+f_cuenc <- factor(df_red$Cuenca)
+
+M <- sparseMatrix(
+  i = as.integer(f_solic),
+  j = as.integer(f_cuenc),
+  x = 1L,
+  dims = c(nlevels(f_solic), nlevels(f_cuenc)),
+  dimnames = list(levels(f_solic), levels(f_cuenc))
+)
+
+g <- graph_from_incidence_matrix(M, weighted = TRUE)
+
+# --- Gráfico: red bipartita
+layout_bip <- layout_as_bipartite(g, hgap = 3, vgap = 1)
+col_solicitantes <- adjustcolor("steelblue", alpha = 0.7)
+col_cuencas <- adjustcolor("darkorange2", alpha = 0.8)
+grados <- degree(g)
+tam_vertices <- ifelse(V(g)$type, 
+                       pmax(0.5, pmin(4, sqrt(grados/10))), 
+                       pmax(1, pmin(6, sqrt(grados/5))))
+
+if("caudal_anual" %in% names(df_red)) {
+  df_edges <- df_red %>%
+    mutate(
+      from = as.integer(f_solic),
+      to = as.integer(f_cuenc) + nlevels(f_solic)
+    ) %>%
+    select(from, to, caudal_anual)
+  edge_list <- get.edgelist(g)
+  for(i in 1:nrow(edge_list)) {
+    E(g)[i]$weight <- 1  
+    }
+}
+
+plot(g,
+     vertex.color = ifelse(V(g)$type, col_solicitantes, col_cuencas),
+     vertex.label = NA,
+     vertex.size = tam_vertices,
+     vertex.frame.color = adjustcolor("white", alpha = 0.8),
+     vertex.frame.width = 0.5,
+     edge.color = adjustcolor("gray40", alpha = 0.25),
+     edge.width = 0.3,
+     layout = layout_bip,
+     cex.main = 1.1)
+
+# Limpieza de nombres
+rownames(M) <- NULL # nombres de cuencas se mantienen
+
+# Filtrar por grado mínimo
+min_deg_solic <- 2L   
+min_deg_cuenc <- 1L   
+
+rdeg <- Matrix::rowSums(M != 0)
+cdeg <- Matrix::colSums(M != 0)
+
+keep_rows  <- which(rdeg >= min_deg_solic)
+keep_cols  <- which(cdeg >= min_deg_cuenc)
+
+M_red <- M[keep_rows, keep_cols, drop = FALSE]
+
+# --- Proyecciones sobre la matriz reducida ---
+W_s <- tcrossprod(M_red)
+Matrix::diag(W_s) <- 0L
+
+w_threshold <- 2L  
+W_s@x[W_s@x < w_threshold] <- 0 
+W_s <- drop0(W_s) 
+
+W_c <- crossprod(M_red)
+Matrix::diag(W_c) <- 0L
+
+W_c@x[W_c@x < w_threshold] <- 0
+W_c <- drop0(W_c)
+
+# --- Grafos ponderados a partir de proyecciones ---
+g_solicitantes <- graph_from_adjacency_matrix(W_s, mode = "undirected", weighted = TRUE, diag = FALSE)
+g_cuencas      <- graph_from_adjacency_matrix(W_c, mode = "undirected", weighted = TRUE, diag = FALSE)
+
+V(g_solicitantes)$name <- as.character(seq_len(vcount(g_solicitantes)))
+
+# --- Gráficos: proyecciones completas ---
+# Proyección solicitantes–solicitantes
+# Nos quedamos con el componente conexo más grande
+comp_s <- components(g_solicitantes)
+gc_id_s <- which.max(comp_s$csize)
+g_gc_s  <- induced_subgraph(g_solicitantes, which(comp_s$membership == gc_id_s))
+grados_nodos <- degree(g_gc_s)
+min_size <- 0.8   # tamaño mínimo de nodo
+max_size <- 4.0   # tamaño máximo de nodo
+grados_normalizados <- scales::rescale(grados_nodos, to = c(min_size, max_size))
+pesos_aristas <- E(g_gc_s)$weight
+min_width <- 0.05  
+max_width <- 2.0  
+pesos_normalizados <- scales::rescale(pesos_aristas, to = c(min_width, max_width))
+
+V(g_gc_s)$size <- grados_normalizados
+V(g_gc_s)$degree <- grados_nodos  
+E(g_gc_s)$width <- pesos_normalizados
+
+try({
+  p1 <- ggraph(g_gc_s, layout = "fr") +
+    geom_edge_link(aes(edge_width = weight), alpha = 0.4, color = "gray60") +
+    scale_edge_width_continuous(
+      range = c(min_width, max_width)) +
+    geom_node_point(aes(size = degree), alpha = 0.8, color = "steelblue") +
+    scale_size_continuous(
+      range = c(min_size, max_size)) +
+    theme_void() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      legend.position = "none") +
+    ggtitle("Proyección Solicitantes–Solicitantes")
+    print(p1)
+  }, silent = TRUE)
+
+# Proyección cuencas–cuencas
+# Nos quedamos con el componente conexo más grande
+comp_c <- components(g_cuencas)
+gc_id_c <- which.max(comp_c$csize)
+g_gc_c  <- induced_subgraph(g_cuencas, which(comp_c$membership == gc_id_c))
+V(g_gc_c)$grado <- degree(g_gc_c)
+
+try({
+ p2 <-  ggraph(g_gc_c, layout = "fr") +
+    geom_edge_link(aes(edge_width = weight), alpha = 0.15, color = "gray50") +
+    scale_edge_width(range = c(0.1, 3)) +
+    geom_node_point(aes(size = grado), color = "seagreen", alpha= 0.8) +
+    scale_size_continuous(range = c(min_size, max_size)) +
+    theme_void() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      legend.position =  "none") +
+    ggtitle("Proyección cuencas–cuencas")
+ print(p2)
+}, silent = TRUE)
+
