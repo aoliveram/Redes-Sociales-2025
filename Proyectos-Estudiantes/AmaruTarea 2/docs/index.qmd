@@ -1,0 +1,34 @@
+---
+title: "Tareas de Redes."
+author: "Generación 2025 DCCS"
+date: "`r Sys.Date()`"
+lang: es
+format:
+  html:
+    smooth-scroll: true
+    toc: true
+    toc-depth: 6
+    toc-location: right
+    number-sections: true
+    number-depth: 6
+    code-fold: true
+    bibliography: ref.bib
+    csl: apa-numeric-superscript.csl
+    fig-cap-location: bottom
+#    css: styles.css
+execute:
+  python: true
+  warning: false
+  message: false
+  fig-width: 8
+  fig-height: 6
+---
+<img src="logo.png" style="width: 250px; position:absolute; top:0; left:0; padding:10px;"/>
+
+# Introducción, sobre el repositorio.
+
+Este repositorio contienen las tareas del ramo de Redes del doctorado en Ciencias de la Complejidad Social, Universidad del Desarrollo, Chile.
+
+- [Tarea 1](https://amarusimonaguerojimenez.github.io/Redes-DCCS/Stage2.html).
+- [Tarea 1 Suplementario](https://amarusimonaguerojimenez.github.io/Redes-DCCS/Stage1.html).
+- [Tarea 2](https://amarusimonaguerojimenez.github.io/Redes-DCCS/Stage3.html).
