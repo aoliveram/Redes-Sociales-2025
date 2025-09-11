@@ -49,6 +49,18 @@ sez_query_result <- neuprint_fetch_custom(cypher = sez_cypher_query)
 sez_neurons <- unlist(purrr::map(sez_query_result$data, 1))
 
 
+# neuron map
+neuron_map <- tibble(
+    neuron_id = c(mb_neurons, cx_neurons, sez_neurons),
+    brain_area = c(
+        rep("mb", length(mb_neurons)),
+        rep("cx", length(cx_neurons)),
+        rep("sez", length(sez_neurons))
+    )
+)
+write_rds(x = neuron_map, file = "../../Tarea_2/data/neuron_map.rds")
+
+
 ## neuron ids
 neurons_ids <- c(
     mb_neurons,
@@ -60,13 +72,13 @@ neurons_ids <- c(
 
 ## huge matrix, so better to load the object directly
 connectivity_matrix <- readRDS(file = "../data/connectivity_matrix.rds")
-# connectivity_matrix <- neuprint_get_adjacency_matrix(neurons_ids)
+connectivity_matrix <- neuprint_get_adjacency_matrix(neurons_ids)
 
-# saveRDS(
-#    object = connectivity_matrix,
-#    file = "../data/connectivity_matrix.rds",
-#    compress = TRUE
-# )
+saveRDS(
+    object = connectivity_matrix,
+    file = "../data/connectivity_matrix.rds",
+    compress = TRUE
+)
 
 # build graph object ----
 graph_obj <- graph_from_adjacency_matrix(
@@ -74,6 +86,8 @@ graph_obj <- graph_from_adjacency_matrix(
     mode = "directed",
     weighted = TRUE
 )
+
+saveRDS(object = graph_obj, file = "../../Tarea_2/data/graph_obj.rds")
 
 ## area map
 area_map <- dplyr::bind_rows(
