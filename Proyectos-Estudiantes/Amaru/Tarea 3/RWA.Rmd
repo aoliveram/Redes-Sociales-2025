@@ -1,0 +1,252 @@
+---
+title: "Redes Psicométricas: Ejemplo Reproducible"
+author: "Eduardo Méndez, PhD(c)"
+date: "`r Sys.Date()`"
+output: slidy_presentation
+---
+
+```{r}
+RWA_data <- read.csv("C:/Users/Usuario/Desktop/Doctorado/II 2023/Teoría de Redes/Presentación Final/data-RWA.csv")
+colnames(RWA_data)
+nrow(RWA_data) # number of cases
+```
+
+```{r}
+# Subgrupo RWA_data_main (hasta la columna Q22)
+RWA_data_main <- RWA_data[, 1:which(colnames(RWA_data) == "Q22")]
+
+# Subgrupo RWA_data_others (desde E1 hasta VCL16)
+RWA_data_others <- RWA_data[, which(colnames(RWA_data) == "E1"):which(colnames(RWA_data) == "VCL16")]
+
+# Subgrupo RWA_data_sociodem (desde IP_country hasta major)
+RWA_data_sociodem <- RWA_data[, which(colnames(RWA_data) == "IP_country"):which(colnames(RWA_data) == "major")]
+```
+
+\##########################
+
+Cargamos base de datos:
+
+## Analisis exploratorio de grafos (EGA)
+
+```{r}
+library(EGAnet)
+
+#?EGAnet::EGA()
+ega_RWA <- EGAnet::EGA(data = RWA_data_main,
+            corr = "cor_auto", # polychoric ESTA ES UNA MANERA DE CALCULAR CORR.
+            uni.method = "louvain", # nuevo
+            model = "glasso", #EbicGlaso
+            algorithm = "louvain", # detección de comunidades
+            )
+
+#ega_RWA[[2]] # communities
+```
+
+```{r}
+# Con la EGA podemos ver una correlación controlando por el resto de preguntas.
+ega_RWA$network
+
+# Cuando lo comparamos con la estándar, y claro es muy distinto.
+ega_RWA$correlation
+```
+
+## Bootstrapped stability analisys
+
+## Calculamos centralidad
+
+## Bootstrap para evaluar la estabilidad de las medidas de centralidad
+
+## Eliminando casos (Case dropping)
+
+### Correlation stability coefficient
+
+## Stability of community solutions ------------------------
+
+```{r}
+library("bootnet") # vER ESTABILIDAD DEL GRADO Y CENTRALIDAD
+library("qgraph")
+library("ggplot2")
+#citation("bootnet")
+#citation("qgraph")
+
+# BootEGA examines the stability of dimension results
+
+bootEga_RWA <- EGAnet::bootEGA(data = RWA_data_main,
+            corr = "cor_auto", # polychoric
+            uni.method = "louvain", # nuevo
+            model = "glasso", #EbicGlaso
+            algorithm = "louvain", # detección de comunidades
+            iter = 100,
+            type = "resampling", # EL RESAMPLING NO ES PARAMÉTRICO (QUE REQUIERE TEORÍA)
+            ncores = parallel::detectCores())
+```
+
+### Estabilidad de las dimensiones (Comunidades)
+
+Based on the bootEGA results, this function computes the stability of dimensions. This is computed by assessing the proportion of times the original dimension is exactly replicated in across bootstrap samples
+
+```{r}
+RWA_dimstab <- dimensionStability(bootEga_RWA)
+
+RWA_dimstab[[1]] # structural.consistency = The proportion of times that each empirical EGA dimension exactly replicates across the bootEGA samples
+
+
+```
+
+Structural.consistency = The proportion of times that each empirical EGA dimension exactly replicates across the bootEGA samples
+
+## Estabilidad por ítem
+
+Podemos sacar más información sobre en qué otras dimensiones se replican los items. $0.651$ es el corte que establece si son estables.
+
+Based on the bootEGA results, this function computes and plots the number of times an item (variable) is estimated in the same factor/dimension as originally estimated by EGA (item.replication). The output also contains each item's replication frequency (i.e., proportion of bootstraps that an item appeared in each dimension; item.dim.rep) as well as the average network loading for each item in each dimension (item.loadings).
+
+```{r, echo =FALSE}
+
+library(circlize)
+
+# Color scale with threshold for Item Stability 
+threshold.colors <- circlize::colorRamp2(breaks = c(0, 0.01, 0.65, 0.651, 0.99 , 1),
+                  colors = c("white","darkred", "red", "lawngreen", "darkgreen", "royalblue4"),
+                  transparency = 0, space ="RGB")
+
+# Correlogram
+library("corrplot")
+  corrplot(
+    (RWA_dimstab[[2]])[[2]]$all.dimensions,
+#get(ls(pattern = "item.stab")[1])$item.stability$all.dimensions,
+    method = 'circle',
+    col = threshold.colors(seq(0,1, by = 0.01)),
+    col.lim = c(0, 1),
+    cl.pos = 'n',
+    #title = paste0("Item stability for ", sub(".*res_flores.", "", (ls(pattern = "item.stab")[i]))),
+    tl.col =  "black", #c(nombre.nodos$colores.dark[match(rownames(get(ls(pattern = "item.stab")[1])$item.stability$all.dimensions), nombre.nodos$fraseo)]),#"black",
+    is.corr = FALSE,
+    cl.length = 1 ,
+    cl.cex = 0.1,
+    #cl.offset = 0.651,
+    mar=c(0,0,0.5,0),
+    )
+  
+  colorlegend(
+    colbar = threshold.colors(seq(0,1, by = 0.01)),
+    labels = c(0, 0.651, 1),
+    at = c(0, 0.651, 1),
+    xlim = c(0.35, ncol(
+      (RWA_dimstab[[2]])[[2]]$all.dimensions +0.5)), # best placing heuristic
+    ylim = c(-9, 0.3),
+    vertical = FALSE,
+    #align = "r",
+    ratio.colbar = 0.1,
+    lim.segment = "auto",
+    addlabels = TRUE
+  )
+
+
+```
+
+El color azul indica que el lazo en la red es bkn. El verde indica que ese nodo sí tiene que ver un poco con otras comunidades, y en rojo aquellas preguntas que están igual de presentes en una comunidad que en otra comunidad.
+
+```{r}
+# Suponiendo que RWA_data_main es tu data frame
+RWA_data_main_best <- subset(RWA_data_main, select = -c(Q2, Q12, Q18))
+
+bootEga_RWA_best <- EGAnet::bootEGA(data = RWA_data_main_best,
+            corr = "cor_auto", # polychoric
+            uni.method = "louvain", # nuevo
+            model = "glasso", #EbicGlaso
+            algorithm = "louvain", # detección de comunidades
+            iter = 100,
+            type = "resampling", # EL RESAMPLING NO ES PARAMÉTRICO (QUE REQUIERE TEORÍA)
+            ncores = parallel::detectCores())
+
+RWA_dimstab_best <- dimensionStability(bootEga_RWA_best)
+
+RWA_dimstab_best[[1]]
+
+# Color scale with threshold for Item Stability 
+threshold.colors <- circlize::colorRamp2(breaks = c(0, 0.01, 0.65, 0.651, 0.99 , 1),
+                  colors = c("white","darkred", "red", "lawngreen", "darkgreen", "royalblue4"),
+                  transparency = 0, space ="RGB")
+
+# Correlogram
+library("corrplot")
+  corrplot(
+    (RWA_dimstab_best[[2]])[[2]]$all.dimensions,
+#get(ls(pattern = "item.stab")[1])$item.stability$all.dimensions,
+    method = 'circle',
+    col = threshold.colors(seq(0,1, by = 0.01)),
+    col.lim = c(0, 1),
+    cl.pos = 'n',
+    #title = paste0("Item stability for ", sub(".*res_flores.", "", (ls(pattern = "item.stab")[i]))),
+    tl.col =  "black", #c(nombre.nodos$colores.dark[match(rownames(get(ls(pattern = "item.stab")[1])$item.stability$all.dimensions), nombre.nodos$fraseo)]),#"black",
+    is.corr = FALSE,
+    cl.length = 1 ,
+    cl.cex = 0.1,
+    #cl.offset = 0.651,
+    mar=c(0,0,0.5,0),
+    )
+  
+  colorlegend(
+    colbar = threshold.colors(seq(0,1, by = 0.01)),
+    labels = c(0, 0.651, 1),
+    at = c(0, 0.651, 1),
+    xlim = c(0.35, ncol(
+      (RWA_dimstab_best[[2]])[[2]]$all.dimensions +0.5)), # best placing heuristic
+    ylim = c(-9, 0.3),
+    vertical = FALSE,
+    #align = "r",
+    ratio.colbar = 0.1,
+    lim.segment = "auto",
+    addlabels = TRUE
+  )
+
+```
+
+Ahora sí que todo está solo en una comunidad.
+
+```{r}
+bootEga_RWA_best$EGA$wc
+```
+
+```{r}
+library(dplyr)
+
+# Sintaxis de modelo de regresión (variable latente)
+(bootEga_RWA_best$EGA$wc == 1) %>% which %>% names
+(bootEga_RWA_best$EGA$wc == 2) %>% which %>% names
+(bootEga_RWA_best$EGA$wc == 3) %>% which %>% names
+
+RWA_net <- "
+  RWA_1  =~ Q1 + Q5
+  RWA_2  =~ Q2 + Q7 + Q10 + Q14 + Q17 + Q19 + Q22
+  RWA_3  =~ Q4 + Q6 + Q8 + Q9 + Q11 + Q13 + Q15 + Q16 + Q20 + Q21 "
+```
+
+Esto no lo caché ...
+
+```{r}
+# Función SEM con parámetros elegidos
+sem_ciled <-
+  function(x){                              #crea función con decisiones
+    lavaan::sem(x, data = base.ciled,
+              ordered = TRUE,
+              std.lv = TRUE,
+              optim.method=list("BFGS"))
+  }
+
+# Genera tabla en Kabble
+library(kableExtra)
+library(lavaan)
+net_louvain <- model_climate_net %>% sem_ciled() %>% fitMeasures(fit.measures = c("chisq" , "df",    "cfi", "tli", "rmsea", "nfi"))
+proposed <- model_climate_proposed %>% sem_ciled() %>% fitMeasures(fit.measures = c("chisq" , "df",    "cfi", "tli", "rmsea", "nfi"))
+
+rbind(proposed,net_louvain) %>% kableExtra::kbl( digits = 3) %>%
+  kable_paper(bootstrap_options = "striped", full_width = F)
+```
+
+......
+
+```{r}
+# Cosa UVA
+```
