@@ -1,0 +1,370 @@
+---
+title: "t2 code"
+format: html
+editor: visual
+---
+
+```{r}
+# Cargar librerías necesarias
+library(igraph)
+library(readr)
+library(Matrix)
+
+# --------------------------------------------------------------------------
+# 1. CARGA Y CONSTRUCCIÓN DE LA RED
+# --------------------------------------------------------------------------
+
+# Leer los datos de colaboraciones
+df <- read_csv("df_cite.csv")
+
+# Convertir columnas a factores para crear la matriz de incidencia
+autores_factor <- factor(df$Autor)
+afiliaciones_factor <- factor(df$Afil)
+
+# Crear una matriz de incidencia dispersa (autores x afiliaciones)
+M <- sparseMatrix(
+  i = as.integer(autores_factor),
+  j = as.integer(afiliaciones_factor),
+  x = 1, 
+  dims = c(nlevels(autores_factor), nlevels(afiliaciones_factor)),
+  dimnames = list(levels(autores_factor), levels(afiliaciones_factor))
+)
+
+# --------------------------------------------------------------------------
+# 2. FILTRADO DE LA RED
+# --------------------------------------------------------------------------
+# Aplicar criterios de filtrado mencionados en el documento para asegurar
+# la pertinencia y robustez de la red.
+
+# Definir umbrales
+min_deg_afil <- 5L     # Afiliaciones con al menos 5 miembros
+umbral_peso <- 2       # Vínculos de coautoría con un peso mínimo de 2
+
+# Filtrar la matriz de incidencia por el tamaño de las afiliaciones
+cdeg <- Matrix::colSums(M != 0) 
+keep_cols  <- which(cdeg >= min_deg_afil)
+M_reducida <- M[, keep_cols, drop = FALSE]
+
+# Crear la matriz de adyacencia de coautoría (red de autores)
+# Esto se logra proyectando la matriz de incidencia en el modo de autores
+W_autores <- tcrossprod(M_reducida)
+Matrix::diag(W_autores) <- 0L # Eliminar auto-bucles
+
+# Aplicar el umbral de peso mínimo a las colaboraciones
+W_autores@x[W_autores@x < umbral_peso] <- 0 
+W_autores <- drop0(W_autores) # Eliminar los vínculos con peso cero
+
+# --------------------------------------------------------------------------
+# 3. CREACIÓN DEL OBJETO GRAFO Y EXTRACCIÓN DEL COMPONENTE GIGANTE
+# --------------------------------------------------------------------------
+
+# Crear el objeto grafo a partir de la matriz de adyacencia filtrada
+g_autores <- graph_from_adjacency_matrix(W_autores, mode = "undirected", weighted = TRUE)
+
+# Identificar y extraer el componente gigante para eliminar nodos aislados
+comp_aut <- components(g_autores)
+gc_id <- which.max(comp_aut$csize)
+g_gc_aut <- induced_subgraph(g_autores, which(comp_aut$membership == gc_id))
+
+# A partir de este objeto 'g_gc_aut', se realizan todos los análisis descritos
+# en el documento (cálculo de métricas, distribuciones de grado, etc.).
+```
+
+You can add options to executable code like this
+
+```{r}
+# --- INICIO DEL SCRIPT PARA TAREA 2: ANÁLISIS DE LA RED DE COLABORACIÓN ---
+#
+# Este script calcula las métricas descriptivas y genera las visualizaciones 
+# para la red de coautoría, tal como se presenta en el documento de la tarea.
+#
+# -------------------------------------------------------------------------
+
+# Cargar librerías necesarias
+library(igraph)
+library(ggplot2)
+library(dplyr)
+library(tibble)
+
+# Cargar el objeto grafo de la red de autores (componente gigante)
+# Se asume que este objeto ya ha sido creado y guardado previamente.
+g_gc_aut <- readRDS("red_autores.rds")
+
+cat("===============================================================\n")
+cat("          ANÁLISIS ESTRUCTURAL - RED DE COAUTORÍA\n")
+cat("===============================================================\n\n")
+
+# --- 1. MÉTRICAS ESTRUCTURALES GLOBALES ---
+# Corresponden a los valores presentados en el primer y segundo párrafo del informe.
+
+# Tamaño de la red
+num_nodos_aut <- vcount(g_gc_aut)
+num_vinculos_aut <- ecount(g_gc_aut)
+cat("--- Tamaño de la Red ---\n")
+cat("   - Nodos (Autores):", num_nodos_aut, "\n")
+cat("   - Vínculos (Colaboraciones):", num_vinculos_aut, "\n\n")
+
+# Densidad
+densidad_aut <- edge_density(g_gc_aut, loops = FALSE)
+cat("--- Densidad ---\n")
+cat("   - Densidad de la red:", round(densidad_aut, 4), paste0("(", round(densidad_aut * 100, 2), "%)"), "\n\n")
+
+# Distancias en la red
+diametro_aut <- diameter(g_gc_aut, directed = FALSE)
+camino_medio_aut <- mean_distance(g_gc_aut, directed = FALSE)
+cat("--- Distancias en la Red ---\n")
+cat("   - Diámetro:", diametro_aut, "\n")
+cat("   - Longitud de Camino Medio:", round(camino_medio_aut, 2), "\n\n")
+
+# Cohesión (Clusterización)
+cluster_global_aut <- transitivity(g_gc_aut, type = "global")
+cluster_medio_aut <- transitivity(g_gc_aut, type = "average")
+cat("--- Cohesión y Clusterización ---\n")
+cat("   - Coeficiente de Clusterización Global:", round(cluster_global_aut, 3), "\n")
+cat("   - Coeficiente de Clusterización Medio:", round(cluster_medio_aut, 3), "\n\n")
+
+# Asortatividad
+asortatividad_aut <- assortativity_degree(g_gc_aut, directed = FALSE)
+cat("--- Asortatividad ---\n")
+cat("   - Coeficiente de Asortatividad por Grado:", round(asortatividad_aut, 4), "\n\n")
+
+
+# --- 2. ANÁLISIS DE LA DISTRIBUCIÓN DE GRADO ---
+# Corresponde al tercer párrafo y a las Figuras 1 y 2 del informe.
+
+# Primero, calculamos el grado de todos los nodos
+grados_autores <- degree(g_gc_aut)
+
+cat("--- Estadísticas de la Distribución de Grado ---\n")
+cat("   - Grado Promedio:", round(mean(grados_autores), 2), "\n")
+cat("   - Grado Mediano:", median(grados_autores), "\n")
+cat("   - Desviación Estándar del Grado:", round(sd(grados_autores), 2), "\n")
+cat("   - Grado Máximo:", max(grados_autores), "\n\n")
+
+# Visualización: Figura 1 - Histograma de la Distribución de Grado
+# Este gráfico muestra la alta concentración de autores con baja conectividad y la "cola larga".
+plot_figura1 <- ggplot(data.frame(Grado = grados_autores), aes(x = Grado)) +
+  geom_histogram(bins = 100, fill = "#2c7fb8", color = "white", alpha = 0.9) +
+  labs(title = "Figura 1. Histograma de la Distribución de Grado",
+       x = "Grado (Número de Colaboraciones)",
+       y = "Frecuencia (Número de Autores)") +
+  theme_minimal(base_size = 14) +
+  coord_cartesian(xlim = c(0, 2200)) # Ajustar límites para mejor visualización
+
+print(plot_figura1)
+
+# Preparación de datos para la Figura 2
+dist_grado_df <- as.data.frame(table(Grado = grados_autores))
+dist_grado_df$Grado <- as.numeric(as.character(dist_grado_df$Grado))
+names(dist_grado_df) <- c("Grado", "Frecuencia")
+dist_grado_df <- dist_grado_df %>% filter(Frecuencia > 0) # Evitar log(0)
+
+# Visualización: Figura 2 - Distribución en Escala Log-Log
+# Muestra la tendencia lineal que sugiere una ley de potencias (red libre de escala).
+plot_figura2 <- ggplot(dist_grado_df, aes(x = Grado, y = Frecuencia)) +
+  geom_point(alpha = 0.8, shape = 16, color = "black") +
+  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "solid") +
+  scale_x_log10(breaks = c(1, 10, 100, 1000), labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  scale_y_log10(breaks = c(1, 10, 100, 1000), labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  labs(title = "Figura 2. Distribución de Grados (Escala Log-Log)",
+       x = "Grado (log10)",
+       y = "Frecuencia (log10)") +
+  theme_minimal(base_size = 14) +
+  annotation_logticks()
+
+print(plot_figura2)
+
+
+# --- 3. ANÁLIS DE CENTRALIZACIÓN DE LA RED ---
+# Corresponde a los valores de centralización presentados en el informe.
+
+cat("\n--- Métricas de Centralización de la Red ---\n")
+
+# Centralización de Grado
+centr_grado_calc <- centr_degree(g_gc_aut, loops = FALSE)
+cat("   - Centralización de Grado:", round(centr_grado_calc$centralization, 4), "\n")
+
+# --- Centralización de Intermediación (Estimada con cutoff y normalización manual) ---
+cat("   - Calculando Centralización de Intermediación (Estimada con cutoff=5)...\n")
+
+# Paso 1: Calcular los puntajes de intermediación brutos con el cutoff
+btw_estimada_scores <- betweenness(g_gc_aut, directed = FALSE, cutoff = 5)
+
+# Paso 2: Calcular el numerador de la fórmula de centralización de Freeman
+numerador_bw <- sum(max(btw_estimada_scores) - btw_estimada_scores)
+
+# Paso 3: Calcular el denominador (máximo teórico) y normalizar
+n <- vcount(g_gc_aut)
+denominador_bw <- (n - 1)^2 * (n - 2) / 2
+centralizacion_bw_final <- numerador_bw / denominador_bw
+
+cat("   - Centralización de Intermediación (Estimada):", round(centralizacion_bw_final, 4), "\n")
+
+# Centralización de Autovector
+centr_eigen_calc <- centr_eigen(g_gc_aut, directed = FALSE)
+cat("   - Centralización de Vector Propio (Eigenvector):", round(centr_eigen_calc$centralization, 4), "\n\n")
+
+
+# --- FIN DEL SCRIPT ---
+```
+
+```{r}
+# --- INICIO DEL SCRIPT: COMPARACIÓN CON MODELOS NULOS ---
+#
+# Este script realiza una simulación bootstrapping para comparar la red de 
+# coautoría observada contra dos modelos teóricos:
+#   1. Erdös-Rényi (ER): Un modelo de formación aleatoria.
+#   2. Barabási-Albert (BA): Un modelo de conexión preferencial.
+# El objetivo es validar la hipótesis de que la red es libre de escala (scale-free).
+#-----------------------------------------------------------------------
+
+# Cargar librerías necesarias
+library(igraph)
+library(dplyr)
+library(ggplot2)
+
+# Cargar la red de autores observada (componente gigante)
+g_gc_aut <- readRDS("red_autores.rds")
+
+# ======================================================================
+# PARTE 1: GENERACIÓN DE REDES SIMULADAS (BOOTSTRAPPING)
+# ======================================================================
+# Se generan múltiples redes para cada modelo con los mismos parámetros 
+# básicos (nodos y aristas) que la red real.
+
+# 1.1. Configuración de la simulación
+num_nodos <- vcount(g_gc_aut)
+num_aristas <- ecount(g_gc_aut)
+n_sims <- 500 # Número de redes a generar por cada modelo
+
+# 1.2. Bucle de simulación
+cat("Iniciando la generación de", n_sims, "redes para cada modelo (ER y BA)...\n")
+sims_er <- vector(mode = "list", length = n_sims)
+sims_ba <- vector(mode = "list", length = n_sims)
+
+for (i in 1:n_sims) {
+  # Modelo Erdös-Rényi (ER): Red aleatoria
+  sims_er[[i]] <- sample_gnm(n = num_nodos, m = num_aristas, directed = FALSE)
+  
+  # Modelo Barabási-Albert (BA): Conexión preferencial
+  m_ba <- round(num_aristas / num_nodos) # Aristas a añadir por cada nuevo nodo
+  sims_ba[[i]] <- sample_pa(n = num_nodos, m = m_ba, directed = FALSE)
+  
+  if (i %% 50 == 0) cat("... Simulación", i, "de", n_sims, "completada.\n")
+}
+cat("¡Simulación finalizada!\n\n")
+
+# 1.3. Guardar las simulaciones para no tener que repetir este paso
+saveRDS(sims_er, file = "simulaciones_ER.rds")
+saveRDS(sims_ba, file = "simulaciones_BA.rds")
+cat("Listas de redes simuladas guardadas en 'simulaciones_ER.rds' y 'simulaciones_BA.rds'\n\n")
+
+
+# ======================================================================
+# PARTE 2: COMPARACIÓN DE MÉTRICAS ESTRUCTURALES
+# ======================================================================
+# Se calculan métricas clave para la red real y se comparan con el promedio 
+# de las métricas de las redes simuladas.
+
+# 2.1. Función para calcular métricas de una red
+calcular_metricas_red <- function(g) {
+  return(data.frame(
+    clusterizacion = transitivity(g, type = "global"),
+    cent_grado = centralize(degree(g), theoretical.max = TRUE),
+    cent_eigen = centralize(eigen_centrality(g)$vector, theoretical.max = TRUE)
+  ))
+}
+
+# 2.2. Calcular métricas para la red real
+metricas_real <- calcular_metricas_red(g_gc_aut)
+metricas_real$modelo <- "Observada"
+
+# 2.3. Calcular métricas para todas las redes simuladas
+resultados_er <- do.call(rbind, lapply(sims_er, calcular_metricas_red))
+resultados_er$modelo <- "Erdos-Rényi"
+
+resultados_ba <- do.call(rbind, lapply(sims_ba, calcular_metricas_red))
+resultados_ba$modelo <- "Barabási-Albert"
+
+# 2.4. Consolidar y mostrar el resumen
+resumen_metricas <- bind_rows(resultados_er, resultados_ba) %>%
+  group_by(modelo) %>%
+  summarise(
+    clusterizacion = mean(clusterizacion),
+    cent_grado = mean(cent_grado),
+    cent_eigen = mean(cent_eigen)
+  ) %>%
+  bind_rows(metricas_real %>% select(modelo, everything()))
+
+cat("--- Tabla Comparativa de Métricas (Real vs. Promedio Simulado) ---\n")
+print(resumen_metricas)
+cat("\n")
+
+
+# ======================================================================
+# PARTE 3: VISUALIZACIÓN COMPARATIVA (FIGURA 3)
+# ======================================================================
+# Se genera el gráfico de la distribución de grado en escala log-log para 
+# comparar visualmente la topología de la red observada con los modelos.
+
+# 3.1. Función para calcular la distribución de probabilidad de grado P(k)
+calc_degree_distribution <- function(graph_list, model_name) {
+  grados <- unlist(lapply(graph_list, degree))
+  freq_table <- table(grados)
+  prob_df <- data.frame(
+    grado = as.numeric(names(freq_table)),
+    probabilidad = as.numeric(freq_table) / sum(freq_table)
+  )
+  prob_df$modelo <- model_name
+  return(prob_df)
+}
+
+# 3.2. Preparar los datos para el gráfico
+dist_real <- calc_degree_distribution(list(g_gc_aut), "Observada")
+dist_er <- calc_degree_distribution(sims_er, "Erdos-Rényi")
+dist_ba <- calc_degree_distribution(sims_ba, "Barabási-Albert")
+
+# Unir en un solo dataframe y ordenar para la leyenda
+df_dist_plot <- bind_rows(dist_ba, dist_er, dist_real)
+df_dist_plot$modelo <- factor(df_dist_plot$modelo, levels = c("Barabási-Albert", "Erdos-Rényi", "Observada"))
+
+# 3.3. Generar el gráfico (Figura 3)
+plot_figura3 <- ggplot(df_dist_plot, aes(x = grado, y = probabilidad, color = modelo)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(data = filter(df_dist_plot, modelo == "Observada"), alpha = 0.6, size = 1) + # Puntos solo para la real
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  scale_y_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  scale_color_manual(
+    name = "Modelo",
+    values = c("Barabási-Albert" = "#E31A1C", # Rojo
+               "Erdos-Rényi" = "#1F78B4",     # Azul
+               "Observada" = "#33A02C")        # Verde
+  ) +
+  labs(
+    title = "Distribución de Grados en Escala Log-Log",
+    subtitle = "Comparación entre red observada y modelos nulos",
+    x = "Grado (k)",
+    y = "Probabilidad P(k)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  ) +
+  annotation_logticks()
+
+# Mostrar el gráfico
+print(plot_figura3)
+
+# Opcional: Guardar el gráfico
+# ggsave("Figura_3_distribucion_loglog.png", plot = plot_figura3, width = 8, height = 6, dpi = 300)
+
+# --- FIN DEL SCRIPT ---
+```
